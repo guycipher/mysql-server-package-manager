@@ -197,6 +197,13 @@ extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func **funcs,
                                      int type, uint state_mask, void *arg);
 bool end_transaction(THD *thd, bool error);
 
+/** INSTALL PLUGIN as a step of INSTALL PACKAGE, which completes the
+    statement itself. */
+bool install_plugin_for_package(THD *thd, LEX_CSTRING name,
+                                const LEX_STRING *dl);
+/** UNINSTALL PLUGIN as a step of a package statement. */
+bool uninstall_plugin_for_package(THD *thd, LEX_CSTRING name);
+
 /**
   Initialize one plugin.
 */

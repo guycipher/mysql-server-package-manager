@@ -127,6 +127,7 @@ help_keyword
 help_relation
 help_topic
 package
+package_object
 password_history
 plugin
 procs_priv
@@ -904,7 +905,7 @@ AND table_name not like 'ndb%' AND table_name COLLATE utf8mb3_general_ci not lik
 GROUP BY TABLE_SCHEMA;
 TABLE_SCHEMA	count(*)
 information_schema	53
-mysql	36
+mysql	37
 create table t1 (i int, j int);
 create trigger trg1 before insert on t1 for each row
 begin

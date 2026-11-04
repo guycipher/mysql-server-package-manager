@@ -481,6 +481,7 @@ SET(SQL_SHARED_SOURCES
   opt_trace2server.cc
   pack_rows.cc
   package/package.cc
+  package/sql_package.cc
   parse_file.cc
   parse_tree_handler.cc
   parse_tree_helpers.cc
@@ -960,7 +961,7 @@ TARGET_LINK_LIBRARIES(sql_main INTERFACE ${MYSQLD_STATIC_PLUGIN_LIBS})
 TARGET_LINK_LIBRARIES(sql_main PRIVATE
   mysql_server_component_services mysys library_mysys strings vio
   mysql_binlog_event ${LIBWRAP} ${LIBDL} OpenSSL::SSL OpenSSL::Crypto
-  extra::rapidjson extra::boost)
+  extra::rapidjson extra::boost mysql_package)
 
 # sql/immutable_string.h uses
 # google::protobuf::io::CodedOutputStream::WriteVarint64ToArray

@@ -1,0 +1,111 @@
+# Packages are disabled until a registry is allowed.
+INSTALL PACKAGE 'udfs';
+ERROR HY000: Packages are disabled. Set package_registry_allowlist and package_trust_roots to enable them.
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+# root does not hold INSTALL_PACKAGE until it is granted by name.
+INSTALL PACKAGE 'udfs';
+ERROR 42000: Access denied; you need (at least one of) the INSTALL_PACKAGE privilege(s) for this operation
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+# A loadable function package.
+INSTALL PACKAGE 'udfs';
+SELECT metaphon('hello') AS metaphon, myfunc_int(2, 3) AS myfunc_int;
+metaphon	myfunc_int
+HL	5
+SELECT name, dl FROM mysql.func WHERE name IN ('metaphon', 'myfunc_int')
+ORDER BY name;
+name	dl
+metaphon	pkg://udfs@1.0.0/udf_example.so
+myfunc_int	pkg://udfs@1.0.0/udf_example.so
+# A storage engine package.
+INSTALL PACKAGE 'engine' VERSION '=1.0.0';
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int DEFAULT NULL
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+DROP TABLE t1;
+SELECT name, dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+name	dl
+EXAMPLE	pkg://engine@1.0.0/ha_example.so
+# A component package, which installs the pkg:// scheme on first use.
+INSTALL PACKAGE 'qa' FROM 'file://TMP/reg/';
+SELECT mysql_query_attribute_string('missing') IS NULL AS component_works;
+component_works
+1
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+component_urn
+file://component_pkg_scheme
+pkg://qa@1.0.0
+SELECT * FROM mysql.package ORDER BY name;
+name	version	registry	compat_key	constraint_spec	artifact_sha256	origin	installed_at	pending_version
+engine	1.0.0	file://TMP/reg	KEY	=1.0.0	SHA256	binary	#	NULL
+qa	1.0.0	file://TMP/reg	KEY	latest	SHA256	binary	#	NULL
+udfs	1.0.0	file://TMP/reg	KEY	latest	SHA256	binary	#	NULL
+SELECT * FROM mysql.package_object ORDER BY package, type, name;
+package	type	name
+engine	plugin	EXAMPLE
+qa	component	pkg://qa@1.0.0
+udfs	function	metaphon
+udfs	function	myfunc_int
+SHOW PACKAGES;
+Package	Version	Constraint	Origin	Objects	Compat_key	Registry
+engine	1.0.0	=1.0.0	binary	plugin EXAMPLE	KEY	file://TMP/reg
+qa	1.0.0	latest	binary	component pkg://qa@1.0.0	KEY	file://TMP/reg
+udfs	1.0.0	latest	binary	function metaphon, function myfunc_int	KEY	file://TMP/reg
+# Refusals.
+INSTALL PACKAGE 'udfs';
+ERROR HY000: Package 'udfs' is already installed at version 1.0.0.
+INSTALL PACKAGE 'udfs' FROM 'file:///elsewhere';
+ERROR HY000: Registry 'file:///elsewhere' is not in package_registry_allowlist.
+INSTALL PACKAGE 'missing';
+ERROR HY000: Package 'missing' is not in registry 'file://TMP/reg'.
+INSTALL PACKAGE 'half' VERSION '^9';
+ERROR HY000: No version of package 'half' satisfies '^9' on this server. Available versions: 1.0.0.
+INSTALL PACKAGE 'qa' VERSON '1.0.0';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'VERSON '1.0.0'' at line 1
+UNINSTALL PACKAGE 'missing';
+ERROR HY000: Package 'missing' is not installed.
+# A package installs all of its objects or none of them.
+UNINSTALL PACKAGE 'udfs';
+INSTALL PACKAGE 'half';
+ERROR HY000: Can't find symbol 'no_such_function' in library
+SELECT COUNT(*) AS functions_left FROM mysql.func WHERE name = 'metaphon';
+functions_left
+0
+SELECT COUNT(*) AS rows_left FROM mysql.package WHERE name = 'half';
+rows_left
+0
+INSTALL PACKAGE 'udfs';
+# Everything loads from the store again at startup.
+# restart
+SELECT metaphon('hello') AS metaphon;
+metaphon
+HL
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+DROP TABLE t1;
+SELECT mysql_query_attribute_string('missing') IS NULL AS component_works;
+component_works
+1
+# UNINSTALL PACKAGE removes every object and the stored artifact.
+UNINSTALL PACKAGE 'udfs';
+UNINSTALL PACKAGE 'engine';
+UNINSTALL PACKAGE 'qa';
+SELECT COUNT(*) FROM mysql.package;
+COUNT(*)
+0
+SELECT COUNT(*) FROM mysql.package_object;
+COUNT(*)
+0
+SELECT COUNT(*) FROM mysql.func WHERE name IN ('metaphon', 'myfunc_int');
+COUNT(*)
+0
+SELECT COUNT(*) FROM mysql.plugin WHERE name = 'EXAMPLE';
+COUNT(*)
+0
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+component_urn
+file://component_pkg_scheme
+UNINSTALL COMPONENT 'file://component_pkg_scheme';
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;

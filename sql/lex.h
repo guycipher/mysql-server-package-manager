@@ -504,6 +504,8 @@ static const SYMBOL symbols[] = {
     {SYM("OUTFILE", OUTFILE)},
     {SYM("OVER", OVER_SYM)},
     {SYM("OWNER", OWNER_SYM)},
+    {SYM("PACKAGE", PACKAGE_SYM)},
+    {SYM("PACKAGES", PACKAGES_SYM)},
     {SYM("PACK_KEYS", PACK_KEYS_SYM)},
     {SYM("PATH", PATH_SYM)},
     {SYM("PARAMETERS", PARAMETERS_SYM)},

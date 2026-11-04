@@ -30,6 +30,9 @@
   Server options for installing extensions as packages.
 */
 
+#include <cstddef>
+#include <string>
+
 #include "my_inttypes.h"
 #include "my_io.h"
 
@@ -44,5 +47,30 @@ extern ulong opt_package_build_timeout;
 
 /** Every package_registry_allowlist entry names an https:// or file:// URL. */
 bool package_registry_allowlist_valid(const char *list);
+
+/** Letters, digits and _, at most 64 characters. */
+bool package_name_valid(const std::string &name);
+
+/** Starts with a digit, and holds no path separator or "..". */
+bool package_version_valid(const std::string &version);
+
+/**
+  Whether a plugin or function library name is a package artifact,
+  pkg://name@version/file, rather than a file in plugin_dir.
+*/
+bool is_package_library(const char *dl, size_t length);
+
+/**
+  The file a package artifact name refers to, under package_store_dir.
+
+  @return false if the name is malformed or the path does not fit.
+*/
+bool package_library_path(const char *dl, size_t length, char *path,
+                          size_t path_size);
+
+/** The library name of a package artifact, pkg://name@version/file. */
+std::string package_library_name(const std::string &name,
+                                 const std::string &version,
+                                 const std::string &file);
 
 #endif /* SQL_PACKAGE_PACKAGE_H */

@@ -67,9 +67,10 @@
 #include "sql/handler.h"
 #include "sql/iterators/row_iterator.h"
 #include "sql/mdl.h"
-#include "sql/mysqld.h"     // opt_allow_suspicious_udfs
-#include "sql/sql_base.h"   // close_mysql_tables
-#include "sql/sql_class.h"  // THD
+#include "sql/mysqld.h"           // opt_allow_suspicious_udfs
+#include "sql/package/package.h"  // package_library_path
+#include "sql/sql_base.h"         // close_mysql_tables
+#include "sql/sql_class.h"        // THD
 #include "sql/sql_const.h"
 #include "sql/sql_executor.h"            // unique_ptr_destroy_only<RowIterator>
 #include "sql/sql_parse.h"               // check_string_char_length
@@ -117,6 +118,21 @@ static udf_func *add_udf(LEX_STRING *name, Item_result ret, char *dl,
                          Item_udftype typ);
 static void udf_hash_delete(udf_func *udf);
 static void *find_udf_dl(const char *dl);
+
+/*
+  The file a function library name refers to, a bare file name in plugin_dir
+  or a package artifact in the package store. Returns false for any other
+  name, so that only approved libraries are loaded.
+*/
+static bool udf_library_path(const char *dl, char *path, size_t path_size) {
+  const size_t length = strlen(dl);
+  if (is_package_library(dl, length))
+    return package_library_path(dl, length, path, path_size);
+  if (check_valid_path(dl, length)) return false;
+  strxnmov(path, path_size - 1, opt_plugin_dir, "/", dl, NullS);
+  (void)unpack_filename(path, path);
+  return true;
+}
 
 // mysql.func table definition.
 static const int MYSQL_UDF_TABLE_FIELD_COUNT = 4;
@@ -293,7 +309,8 @@ void udf_read_functions_table() {
     */
 
     LEX_CSTRING name_cstr = {name.str, name.length};
-    if (check_valid_path(dl_name, strlen(dl_name)) ||
+    char dlpath[FN_REFLEN];
+    if (!udf_library_path(dl_name, dlpath, sizeof(dlpath)) ||
         check_string_char_length(name_cstr, "", NAME_CHAR_LEN,
                                  system_charset_info, true)) {
       LogErr(ERROR_LEVEL, ER_UDF_INVALID_ROW_IN_FUNCTION_TABLE, name.str);
@@ -308,9 +325,6 @@ void udf_read_functions_table() {
 
     void *dl = find_udf_dl(tmp->dl);
     if (dl == nullptr) {
-      char dlpath[FN_REFLEN];
-      strxnmov(dlpath, sizeof(dlpath) - 1, opt_plugin_dir, "/", tmp->dl, NullS);
-      (void)unpack_filename(dlpath, dlpath);
       if (!(dl = dlopen(dlpath, RTLD_NOW))) {
         const char *errmsg;
         int error_number = dlopen_errno;
@@ -634,7 +648,8 @@ bool mysql_create_function(THD *thd, udf_func *udf, bool if_not_exists) {
     This is done to ensure that only approved dll from the system
     directories are used (to make this even remotely secure).
   */
-  if (check_valid_path(udf->dl, strlen(udf->dl))) {
+  char dlpath[FN_REFLEN];
+  if (!udf_library_path(udf->dl, dlpath, sizeof(dlpath))) {
     my_error(ER_UDF_NO_PATHS, MYF(0));
     return error;
   }
@@ -701,10 +716,6 @@ bool mysql_create_function(THD *thd, udf_func *udf, bool if_not_exists) {
   mysql_rwlock_unlock(&THR_LOCK_udf);
 
   if (dl == nullptr) {
-    char dlpath[FN_REFLEN];
-    strxnmov(dlpath, sizeof(dlpath) - 1, opt_plugin_dir, "/", udf->dl, NullS);
-    (void)unpack_filename(dlpath, dlpath);
-
     if (!(dl = dlopen(dlpath, RTLD_NOW))) {
       const char *errmsg;
       int error_number = dlopen_errno;

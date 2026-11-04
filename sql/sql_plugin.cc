@@ -88,6 +88,7 @@
 #include "sql/log.h"
 #include "sql/mdl.h"
 #include "sql/mysqld.h"              // files_charset_info
+#include "sql/package/package.h"     // package_library_path
 #include "sql/persisted_variable.h"  // Persisted_variables_cache
 #include "sql/protocol_classic.h"
 #include "sql/psi_memory_key.h"
@@ -659,12 +660,16 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report,
     Ensure that the dll doesn't have a path.
     This is done to ensure that only approved libraries from the
     plugin directory are used (to make this even remotely secure).
+    A package artifact is the exception, and is loaded from the package store.
   */
   const LEX_CSTRING dl_cstr = {dl->str, dl->length};
-  if (check_valid_path(dl->str, dl->length) ||
+  const bool package = is_package_library(dl->str, dl->length);
+  if ((package
+           ? !package_library_path(dl->str, dl->length, dlpath, sizeof(dlpath))
+           : check_valid_path(dl->str, dl->length)) ||
       check_string_char_length(dl_cstr, "", NAME_CHAR_LEN, system_charset_info,
                                true) ||
-      plugin_dir_len + dl->length + 1 >= FN_REFLEN) {
+      (!package && plugin_dir_len + dl->length + 1 >= FN_REFLEN)) {
     mysql_mutex_unlock(&LOCK_plugin);
     mysql_rwlock_unlock(&LOCK_system_variables_hash);
     report_error(report, ER_UDF_NO_PATHS);
@@ -677,10 +682,14 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report,
   }
   memset(&plugin_dl, 0, sizeof(plugin_dl));
   /* Compile dll path */
-  dlpathlen = strxnmov(dlpath, sizeof(dlpath) - 1, opt_plugin_dir, "/", dl->str,
-                       NullS) -
-              dlpath;
-  (void)unpack_filename(dlpath, dlpath);
+  if (package) {
+    dlpathlen = strlen(dlpath);
+  } else {
+    dlpathlen = strxnmov(dlpath, sizeof(dlpath) - 1, opt_plugin_dir, "/",
+                         dl->str, NullS) -
+                dlpath;
+    (void)unpack_filename(dlpath, dlpath);
+  }
   plugin_dl.ref_count = 1;
   /* Open new dll handle */
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -3531,4 +3540,15 @@ bool Sql_cmd_uninstall_plugin::execute(THD *thd) {
   const bool st = mysql_uninstall_plugin(thd, m_comment);
   if (!st) my_ok(thd);
   return st;
+}
+
+bool install_plugin_for_package(THD *thd, LEX_CSTRING name,
+                                const LEX_STRING *dl) {
+  const bool st = mysql_install_plugin(thd, name, dl);
+  mysql_audit_release(thd);
+  return st;
+}
+
+bool uninstall_plugin_for_package(THD *thd, LEX_CSTRING name) {
+  return mysql_uninstall_plugin(thd, name);
 }

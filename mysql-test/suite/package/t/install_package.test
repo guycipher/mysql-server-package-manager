@@ -1,0 +1,134 @@
+# INSTALL PACKAGE installs every plugin, function and component a signed
+# package lists, from the package store, and UNINSTALL PACKAGE removes them.
+
+--source ../include/have_package_tools.inc
+
+--let $tmp = $MYSQLTEST_VARDIR/tmp/pkgreg
+--let $plugin_dir = `SELECT @@plugin_dir`
+--let PKG_TMP = $tmp
+--let PKG_KEY = `SELECT @@build_compat_key`
+--let PKG_SERVER = `SELECT SUBSTRING_INDEX(@@version, '-', 1)`
+--mkdir $tmp
+
+--echo # Packages are disabled until a registry is allowed.
+--error ER_PACKAGES_DISABLED
+INSTALL PACKAGE 'udfs';
+
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/signer > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY init $tmp/reg --key $tmp/signer.pem
+
+perl;
+  my $tmp = $ENV{PKG_TMP};
+  my %manifests = (
+    "udfs" => "[[object]]\ntype = \"function\"\nname = \"metaphon\"\n" .
+              "returns = \"STRING\"\n\n[[object]]\ntype = \"function\"\n" .
+              "name = \"myfunc_int\"\nreturns = \"INTEGER\"\n\n" .
+              "[compat]\nserver = \">=26.0.0\"\n",
+    "engine" => "[[object]]\ntype = \"plugin\"\nname = \"EXAMPLE\"\n" .
+                "plugin_type = \"storage_engine\"\n\n" .
+                "[compat]\nserver = \"=$ENV{PKG_SERVER}\"\n",
+    "qa" => "[[object]]\ntype = \"component\"\n\n" .
+            "[compat]\nserver = \">=26.0.0\"\n",
+    "half" => "[[object]]\ntype = \"function\"\nname = \"metaphon\"\n" .
+              "returns = \"STRING\"\n\n[[object]]\ntype = \"function\"\n" .
+              "name = \"no_such_function\"\nreturns = \"STRING\"\n\n" .
+              "[compat]\nserver = \">=26.0.0\"\n",
+  );
+  for my $name (keys %manifests) {
+    open(my $f, '>', "$tmp/$name.toml") or die;
+    print $f "[package]\nname = \"$name\"\nversion = \"1.0.0\"\n\n" .
+             $manifests{$name};
+    close $f;
+  }
+EOF
+
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/udfs.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/udf_example.so" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/engine.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/ha_example.so" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/qa.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/component_query_attributes.so" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/half.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/udf_example.so" > /dev/null
+
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+
+--echo # root does not hold INSTALL_PACKAGE until it is granted by name.
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSTALL PACKAGE 'udfs';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+
+--echo # A loadable function package.
+INSTALL PACKAGE 'udfs';
+SELECT metaphon('hello') AS metaphon, myfunc_int(2, 3) AS myfunc_int;
+SELECT name, dl FROM mysql.func WHERE name IN ('metaphon', 'myfunc_int')
+ORDER BY name;
+
+--echo # A storage engine package.
+INSTALL PACKAGE 'engine' VERSION '=1.0.0';
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SELECT name, dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+
+--echo # A component package, which installs the pkg:// scheme on first use.
+--replace_result $tmp TMP
+eval INSTALL PACKAGE 'qa' FROM 'file://$tmp/reg/';
+SELECT mysql_query_attribute_string('missing') IS NULL AS component_works;
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+
+--replace_column 8 #
+--replace_result $tmp TMP $PKG_KEY KEY
+--replace_regex /[0-9a-f]{64}/SHA256/
+SELECT * FROM mysql.package ORDER BY name;
+SELECT * FROM mysql.package_object ORDER BY package, type, name;
+--replace_result $tmp TMP $PKG_KEY KEY
+SHOW PACKAGES;
+
+--echo # Refusals.
+--error ER_PACKAGE_ALREADY_INSTALLED
+INSTALL PACKAGE 'udfs';
+--error ER_PACKAGE_REGISTRY_NOT_ALLOWED
+INSTALL PACKAGE 'udfs' FROM 'file:///elsewhere';
+--replace_result $tmp TMP
+--error ER_PACKAGE_NOT_FOUND
+INSTALL PACKAGE 'missing';
+--error ER_PACKAGE_NO_MATCHING_VERSION
+INSTALL PACKAGE 'half' VERSION '^9';
+--error ER_PARSE_ERROR
+INSTALL PACKAGE 'qa' VERSON '1.0.0';
+--error ER_PACKAGE_NOT_INSTALLED
+UNINSTALL PACKAGE 'missing';
+
+--echo # A package installs all of its objects or none of them.
+UNINSTALL PACKAGE 'udfs';
+--error ER_CANT_FIND_DL_ENTRY
+INSTALL PACKAGE 'half';
+SELECT COUNT(*) AS functions_left FROM mysql.func WHERE name = 'metaphon';
+SELECT COUNT(*) AS rows_left FROM mysql.package WHERE name = 'half';
+--file_exists $MYSQLTEST_VARDIR/pkgstore/qa/1.0.0/qa.so
+--error 1
+--file_exists $MYSQLTEST_VARDIR/pkgstore/half
+INSTALL PACKAGE 'udfs';
+
+--echo # Everything loads from the store again at startup.
+--source include/restart_mysqld.inc
+SELECT metaphon('hello') AS metaphon;
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+DROP TABLE t1;
+SELECT mysql_query_attribute_string('missing') IS NULL AS component_works;
+
+--echo # UNINSTALL PACKAGE removes every object and the stored artifact.
+UNINSTALL PACKAGE 'udfs';
+UNINSTALL PACKAGE 'engine';
+UNINSTALL PACKAGE 'qa';
+SELECT COUNT(*) FROM mysql.package;
+SELECT COUNT(*) FROM mysql.package_object;
+SELECT COUNT(*) FROM mysql.func WHERE name IN ('metaphon', 'myfunc_int');
+SELECT COUNT(*) FROM mysql.plugin WHERE name = 'EXAMPLE';
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+--error 1
+--file_exists $MYSQLTEST_VARDIR/pkgstore/udfs
+
+UNINSTALL COMPONENT 'file://component_pkg_scheme';
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;
+--force-rmdir $tmp
+--force-rmdir $MYSQLTEST_VARDIR/pkgstore

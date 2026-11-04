@@ -116,6 +116,7 @@ Note: YYTHD is passed as an argument to yyparse(), and subsequently to yylex().
 #include "sql/mem_root_array.h"
 #include "sql/mysqld.h"
 #include "sql/options_mysqld.h"
+#include "sql/package/sql_package.h"
 #include "sql/parse_location.h"
 #include "sql/parse_tree_helpers.h"
 #include "sql/parse_tree_node_base.h"
@@ -1497,6 +1498,9 @@ CHARSET_INFO *warn_on_deprecated_user_defined_collation(
 %token<lexer.keyword> APPLIER_WORKER_COUNT_SYM       1244     /* MYSQL */
 %token<lexer.keyword> APPLIER_EVENT_MEMORY_LIMIT_SYM 1245     /* MYSQL */
 
+%token<lexer.keyword> PACKAGE_SYM                    1246     /* MYSQL */
+%token<lexer.keyword> PACKAGES_SYM                   1247     /* MYSQL */
+
 /*
   NOTE! When adding new non-standard keywords, make sure they are added to the
   list ident_keywords_unambiguous lest they become reserved keywords.
@@ -1584,6 +1588,8 @@ CHARSET_INFO *warn_on_deprecated_user_defined_collation(
 %type <lex_cstr>
         key_cache_name
         label_ident
+        opt_package_from
+        opt_package_version
         opt_table_alias
         opt_replace_password
         sp_opt_label
@@ -2607,6 +2613,7 @@ simple_statement:
         | show_keys_stmt
         | show_library_status_stmt
         | show_open_tables_stmt
+        | show_packages_stmt            { $$= nullptr; }
         | show_parse_tree_stmt
         | show_plugins_stmt
         | show_privileges_stmt
@@ -14224,6 +14231,15 @@ show_plugins_stmt:
           }
         ;
 
+show_packages_stmt:
+          SHOW PACKAGES_SYM
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_PACKAGES;
+            lex->m_sql_cmd= new (YYMEM_ROOT) Sql_cmd_show_packages();
+          }
+        ;
+
 show_engine_logs_stmt:
           SHOW ENGINE_SYM engine_or_all LOGS_SYM
           {
@@ -16346,6 +16362,8 @@ ident_keywords_unambiguous:
         | ORGANIZATION_SYM
         | OTHERS_SYM
         | OWNER_SYM
+        | PACKAGE_SYM
+        | PACKAGES_SYM
         | PACK_KEYS_SYM
         | PAGE_SYM
         | PARALLEL_SYM
@@ -19125,6 +19143,34 @@ install_stmt:
           {
             $$ = NEW_PTN PT_install_component(@$, YYTHD, $3, $4);
           }
+        | INSTALL_SYM PACKAGE_SYM TEXT_STRING_sys opt_package_version
+          opt_package_from
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_INSTALL_PACKAGE;
+            lex->m_sql_cmd= new (YYMEM_ROOT)
+              Sql_cmd_install_package(to_lex_cstring($3), $4, $5);
+            $$ = nullptr;
+          }
+        ;
+
+/* VERSION is not a keyword, so that VERSION() stays a plain function. */
+opt_package_version:
+          %empty { $$ = NULL_CSTR; }
+        | ident TEXT_STRING_sys
+          {
+            if (!is_identifier($1, "VERSION"))
+            {
+              YYTHD->syntax_error_at(@1);
+              MYSQL_YYABORT;
+            }
+            $$ = to_lex_cstring($2);
+          }
+        ;
+
+opt_package_from:
+          %empty { $$ = NULL_CSTR; }
+        | FROM TEXT_STRING_sys { $$ = to_lex_cstring($2); }
         ;
 
 uninstall:
@@ -19139,6 +19185,13 @@ uninstall:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_UNINSTALL_COMPONENT;
             lex->m_sql_cmd= new (YYMEM_ROOT) Sql_cmd_uninstall_component($3);
+          }
+       | UNINSTALL_SYM PACKAGE_SYM TEXT_STRING_sys
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_UNINSTALL_PACKAGE;
+            lex->m_sql_cmd= new (YYMEM_ROOT)
+              Sql_cmd_uninstall_package(to_lex_cstring($3));
           }
         ;
 
