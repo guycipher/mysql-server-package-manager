@@ -27,7 +27,7 @@
 /**
   @file sql/package/sql_package.h
 
-  INSTALL PACKAGE, UNINSTALL PACKAGE and SHOW PACKAGES.
+  INSTALL PACKAGE, UPGRADE PACKAGE, UNINSTALL PACKAGE and SHOW PACKAGES.
 */
 
 #include "lex_string.h"
@@ -62,6 +62,32 @@ class Sql_cmd_install_package : public Sql_cmd {
   const LEX_CSTRING m_registry;
 };
 
+/**
+  UPGRADE PACKAGE 'name' [VERSION 'constraint']
+
+  Resolves the newest version under the recorded constraint, or under a new
+  one that is then recorded, from the registry the package came from. The
+  previous version stays in the store until the new one is installed, and is
+  installed again if it fails. When tables use a storage engine of the
+  package, the new version is staged and replaces it at the next restart.
+*/
+class Sql_cmd_upgrade_package : public Sql_cmd {
+ public:
+  Sql_cmd_upgrade_package(const LEX_CSTRING &name,
+                          const LEX_CSTRING &constraint)
+      : m_name(name), m_constraint(constraint) {}
+
+  enum_sql_command sql_command_code() const override {
+    return SQLCOM_UPGRADE_PACKAGE;
+  }
+
+  bool execute(THD *thd) override;
+
+ private:
+  const LEX_CSTRING m_name;
+  const LEX_CSTRING m_constraint;
+};
+
 /** UNINSTALL PACKAGE 'name', which removes everything the package installed. */
 class Sql_cmd_uninstall_package : public Sql_cmd {
  public:
@@ -86,5 +112,12 @@ class Sql_cmd_show_packages : public Sql_cmd {
 
   bool execute(THD *thd) override;
 };
+
+/**
+  Applies the versions UPGRADE PACKAGE staged for restart, before the
+  plugins in mysql.plugin are loaded. A staged version is verified again and
+  is discarded, with a warning in the error log, if it no longer passes.
+*/
+void package_apply_pending();
 
 #endif /* SQL_PACKAGE_SQL_PACKAGE_H */

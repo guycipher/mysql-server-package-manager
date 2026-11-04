@@ -1,0 +1,4 @@
+$AUDIT_NULL_OPT
+--package-store-dir=$MYSQLTEST_VARDIR/pkgstore
+--package-helper=$MYSQL_PACKAGE_BUILD
+--package-trust-roots=$MYSQLTEST_VARDIR/tmp/pkgreg/signer.pub

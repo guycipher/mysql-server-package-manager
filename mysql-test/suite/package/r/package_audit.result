@@ -1,0 +1,29 @@
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+INSTALL PLUGIN null_audit SONAME 'adt_null.so';
+SET @@null_audit_event_record_def =
+'MYSQL_AUDIT_MESSAGE_INTERNAL;MYSQL_AUDIT_QUERY_STATUS_END';
+INSTALL PACKAGE 'udfs' VERSION '1.0.0';
+SELECT @@null_audit_event_record;
+@@null_audit_event_record
+MYSQL_AUDIT_MESSAGE_INTERNAL;component="mysql_server" producer="package" message="installed" key[0]="name" value[0]="udfs" key[1]="version" value[1]="1.0.0" key[2]="previous" value[2]="" key[3]="compat_key" value[3]="KEY" key[4]="sha256" value[4]="SHA256" key[5]="registry" value[5]="file://TMP/reg" key[6]="origin" value[6]="binary";
+MYSQL_AUDIT_QUERY_STATUS_END;sql_command_id="168";
+SET @@null_audit_event_record_def =
+'MYSQL_AUDIT_MESSAGE_INTERNAL;MYSQL_AUDIT_QUERY_STATUS_END';
+UPGRADE PACKAGE 'udfs' VERSION '1.1.0';
+SELECT @@null_audit_event_record;
+@@null_audit_event_record
+MYSQL_AUDIT_MESSAGE_INTERNAL;component="mysql_server" producer="package" message="upgraded" key[0]="name" value[0]="udfs" key[1]="version" value[1]="1.1.0" key[2]="previous" value[2]="1.0.0" key[3]="compat_key" value[3]="KEY" key[4]="sha256" value[4]="SHA256" key[5]="registry" value[5]="file://TMP/reg" key[6]="origin" value[6]="binary";
+MYSQL_AUDIT_QUERY_STATUS_END;sql_command_id="169";
+SET @@null_audit_event_record_def =
+'MYSQL_AUDIT_MESSAGE_INTERNAL;MYSQL_AUDIT_QUERY_STATUS_END';
+UNINSTALL PACKAGE 'udfs';
+SELECT @@null_audit_event_record;
+@@null_audit_event_record
+MYSQL_AUDIT_MESSAGE_INTERNAL;component="mysql_server" producer="package" message="uninstalled" key[0]="name" value[0]="udfs" key[1]="version" value[1]="1.1.0" key[2]="previous" value[2]="" key[3]="compat_key" value[3]="KEY" key[4]="sha256" value[4]="SHA256" key[5]="registry" value[5]="file://TMP/reg" key[6]="origin" value[6]="binary";
+MYSQL_AUDIT_QUERY_STATUS_END;sql_command_id="170";
+UNINSTALL PLUGIN null_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;

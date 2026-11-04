@@ -13566,6 +13566,9 @@ ER_PACKAGE_LOG_OPERATION
 ER_PACKAGE_LOG_HELPER_OUTPUT
   eng "Package helper output for %s: %s"
 
+ER_PACKAGE_LOG_PENDING_FAILED
+  eng "Package %s %s staged for restart was not applied, because %s."
+
 #
 # End of "9.7 cal-ver compatibility lineage (starts from 26.7)" messages intended to be written to the server error log.
 #

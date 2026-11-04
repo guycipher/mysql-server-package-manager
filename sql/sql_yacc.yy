@@ -2493,6 +2493,7 @@ opt_end_of_input:
 simple_statement_or_begin:
           simple_statement      { *parse_tree= $1; }
         | begin_stmt
+        | package_stmt
         ;
 
 /* Verb clauses, except begin_stmt */
@@ -19143,14 +19144,34 @@ install_stmt:
           {
             $$ = NEW_PTN PT_install_component(@$, YYTHD, $3, $4);
           }
-        | INSTALL_SYM PACKAGE_SYM TEXT_STRING_sys opt_package_version
+        ;
+
+/*
+  Package statements are not accepted inside stored programs, which keeps
+  UPGRADE usable as a label there.
+*/
+package_stmt:
+          INSTALL_SYM PACKAGE_SYM TEXT_STRING_sys opt_package_version
           opt_package_from
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_INSTALL_PACKAGE;
             lex->m_sql_cmd= new (YYMEM_ROOT)
               Sql_cmd_install_package(to_lex_cstring($3), $4, $5);
-            $$ = nullptr;
+          }
+        | UPGRADE_SYM PACKAGE_SYM TEXT_STRING_sys opt_package_version
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_UPGRADE_PACKAGE;
+            lex->m_sql_cmd= new (YYMEM_ROOT)
+              Sql_cmd_upgrade_package(to_lex_cstring($3), $4);
+          }
+        | UNINSTALL_SYM PACKAGE_SYM TEXT_STRING_sys
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_UNINSTALL_PACKAGE;
+            lex->m_sql_cmd= new (YYMEM_ROOT)
+              Sql_cmd_uninstall_package(to_lex_cstring($3));
           }
         ;
 
@@ -19185,13 +19206,6 @@ uninstall:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_UNINSTALL_COMPONENT;
             lex->m_sql_cmd= new (YYMEM_ROOT) Sql_cmd_uninstall_component($3);
-          }
-       | UNINSTALL_SYM PACKAGE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_UNINSTALL_PACKAGE;
-            lex->m_sql_cmd= new (YYMEM_ROOT)
-              Sql_cmd_uninstall_package(to_lex_cstring($3));
           }
         ;
 

@@ -1,0 +1,64 @@
+# Installing, upgrading and uninstalling a package each raise an internal
+# audit message carrying the resolved key and the artifact digest.
+
+--source include/have_null_audit_plugin.inc
+--source include/no_ps_protocol.inc
+--source ../include/have_package_tools.inc
+
+--let $tmp = $MYSQLTEST_VARDIR/tmp/pkgreg
+--let $plugin_dir = `SELECT @@plugin_dir`
+--let PKG_TMP = $tmp
+--let $key = `SELECT @@build_compat_key`
+--mkdir $tmp
+
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/signer > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY init $tmp/reg --key $tmp/signer.pem
+
+perl;
+  my $tmp = $ENV{PKG_TMP};
+  for my $version ("1.0.0", "1.1.0") {
+    open(my $f, '>', "$tmp/udfs-$version.toml") or die;
+    print $f "[package]\nname = \"udfs\"\nversion = \"$version\"\n\n" .
+             "[[object]]\ntype = \"function\"\nname = \"metaphon\"\n" .
+             "returns = \"STRING\"\n\n[compat]\nserver = \">=26.0.0\"\n";
+    close $f;
+  }
+EOF
+
+--let $add = $MYSQL_PACKAGE_REGISTRY add $tmp/reg --key $tmp/signer.pem
+--exec $add $tmp/udfs-1.0.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/udfs-1.1.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+
+--replace_regex /\.dll/.so/
+eval INSTALL PLUGIN null_audit SONAME '$AUDIT_NULL';
+
+SET @@null_audit_event_record_def =
+  'MYSQL_AUDIT_MESSAGE_INTERNAL;MYSQL_AUDIT_QUERY_STATUS_END';
+INSTALL PACKAGE 'udfs' VERSION '1.0.0';
+--replace_result $tmp TMP $key KEY
+--replace_regex /[0-9a-f]{64}/SHA256/
+SELECT @@null_audit_event_record;
+
+SET @@null_audit_event_record_def =
+  'MYSQL_AUDIT_MESSAGE_INTERNAL;MYSQL_AUDIT_QUERY_STATUS_END';
+UPGRADE PACKAGE 'udfs' VERSION '1.1.0';
+--replace_result $tmp TMP $key KEY
+--replace_regex /[0-9a-f]{64}/SHA256/
+SELECT @@null_audit_event_record;
+
+SET @@null_audit_event_record_def =
+  'MYSQL_AUDIT_MESSAGE_INTERNAL;MYSQL_AUDIT_QUERY_STATUS_END';
+UNINSTALL PACKAGE 'udfs';
+--replace_result $tmp TMP $key KEY
+--replace_regex /[0-9a-f]{64}/SHA256/
+SELECT @@null_audit_event_record;
+
+UNINSTALL PLUGIN null_audit;
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;
+--force-rmdir $tmp
+--force-rmdir $MYSQLTEST_VARDIR/pkgstore

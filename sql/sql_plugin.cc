@@ -87,8 +87,9 @@
 #include "sql/lock.h"  // acquire_shared_global...
 #include "sql/log.h"
 #include "sql/mdl.h"
-#include "sql/mysqld.h"              // files_charset_info
-#include "sql/package/package.h"     // package_library_path
+#include "sql/mysqld.h"           // files_charset_info
+#include "sql/package/package.h"  // package_library_path
+#include "sql/package/sql_package.h"
 #include "sql/persisted_variable.h"  // Persisted_variables_cache
 #include "sql/protocol_classic.h"
 #include "sql/psi_memory_key.h"
@@ -1805,8 +1806,10 @@ bool plugin_register_dynamic_and_init_all(int *argc, char **argv, int flags) {
     while (nullptr != (item = iter++))
       plugin_load_list(&tmp_root, argc, argv, item->ptr, false);
 
-    if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
+    if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)) {
+      package_apply_pending();
       plugin_load(&tmp_root, argc, argv);
+    }
 
     /* Temporary mem root not needed anymore, can free it here */
   } else if (!opt_plugin_load_list.is_empty()) {

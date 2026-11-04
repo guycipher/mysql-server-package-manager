@@ -29,6 +29,8 @@ perl;
                 "[compat]\nserver = \"=$ENV{PKG_SERVER}\"\n",
     "qa" => "[[object]]\ntype = \"component\"\n\n" .
             "[compat]\nserver = \">=26.0.0\"\n",
+    "dupe" => "[[object]]\ntype = \"component\"\n\n" .
+              "[compat]\nserver = \">=26.0.0\"\n",
     "half" => "[[object]]\ntype = \"function\"\nname = \"metaphon\"\n" .
               "returns = \"STRING\"\n\n[[object]]\ntype = \"function\"\n" .
               "name = \"no_such_function\"\nreturns = \"STRING\"\n\n" .
@@ -45,6 +47,7 @@ EOF
 --exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/udfs.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/udf_example.so" > /dev/null
 --exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/engine.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/ha_example.so" > /dev/null
 --exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/qa.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/component_query_attributes.so" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/dupe.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/component_udf_reg_avg_func.so" > /dev/null
 --exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/half.toml --key $tmp/signer.pem --binary "$PKG_KEY=$plugin_dir/udf_example.so" > /dev/null
 
 --replace_result $tmp TMP
@@ -96,6 +99,25 @@ INSTALL PACKAGE 'half' VERSION '^9';
 INSTALL PACKAGE 'qa' VERSON '1.0.0';
 --error ER_PACKAGE_NOT_INSTALLED
 UNINSTALL PACKAGE 'missing';
+
+--echo # Package statements are not accepted inside stored programs or as
+--echo # prepared statements, so no routine can lend INSTALL_PACKAGE.
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1() INSTALL PACKAGE 'udfs';
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1() UPGRADE PACKAGE 'udfs';
+--error ER_UNSUPPORTED_PS
+PREPARE s FROM 'UNINSTALL PACKAGE ''udfs''';
+
+--echo # A component whose name is already loaded from another URN.
+INSTALL COMPONENT 'file://component_udf_reg_real_func';
+--error ER_COMPONENTS_LOAD_DUPLICATE_COMPONENT
+INSTALL PACKAGE 'dupe';
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+SELECT COUNT(*) AS rows_left FROM mysql.package WHERE name = 'dupe';
+--error 1
+--file_exists $MYSQLTEST_VARDIR/pkgstore/dupe
+UNINSTALL COMPONENT 'file://component_udf_reg_real_func';
 
 --echo # A package installs all of its objects or none of them.
 UNINSTALL PACKAGE 'udfs';

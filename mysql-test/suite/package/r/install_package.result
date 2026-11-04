@@ -66,6 +66,27 @@ INSTALL PACKAGE 'qa' VERSON '1.0.0';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'VERSON '1.0.0'' at line 1
 UNINSTALL PACKAGE 'missing';
 ERROR HY000: Package 'missing' is not installed.
+# Package statements are not accepted inside stored programs or as
+# prepared statements, so no routine can lend INSTALL_PACKAGE.
+CREATE PROCEDURE p1() INSTALL PACKAGE 'udfs';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'PACKAGE 'udfs'' at line 1
+CREATE PROCEDURE p1() UPGRADE PACKAGE 'udfs';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'PACKAGE 'udfs'' at line 1
+PREPARE s FROM 'UNINSTALL PACKAGE ''udfs''';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+# A component whose name is already loaded from another URN.
+INSTALL COMPONENT 'file://component_udf_reg_real_func';
+INSTALL PACKAGE 'dupe';
+ERROR HY000: Component 'mysql:test_udf_registration' is already loaded from URN 'file://component_udf_reg_real_func'.
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+component_urn
+file://component_pkg_scheme
+pkg://qa@1.0.0
+file://component_udf_reg_real_func
+SELECT COUNT(*) AS rows_left FROM mysql.package WHERE name = 'dupe';
+rows_left
+0
+UNINSTALL COMPONENT 'file://component_udf_reg_real_func';
 # A package installs all of its objects or none of them.
 UNINSTALL PACKAGE 'udfs';
 INSTALL PACKAGE 'half';

@@ -1,0 +1,105 @@
+call mtr.add_suppression("Package engine 1.3.0 staged for restart was not applied");
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+# An upgrade stays within the recorded constraint.
+INSTALL PACKAGE 'udfs' VERSION '1.0.0';
+UPGRADE PACKAGE 'udfs';
+Warnings:
+Note	6941	Package 'udfs' is already at 1.0.0, the newest version that satisfies '1.0.0'.
+UPGRADE PACKAGE 'udfs' VERSION '^1';
+SELECT version, constraint_spec FROM mysql.package;
+version	constraint_spec
+1.1.0	^1
+SELECT dl FROM mysql.func WHERE name = 'metaphon';
+dl
+pkg://udfs@1.1.0/udf_example.so
+UPGRADE PACKAGE 'udfs';
+Warnings:
+Note	6941	Package 'udfs' is already at 1.1.0, the newest version that satisfies '^1'.
+# A version that fails to install leaves the previous one in place.
+UPGRADE PACKAGE 'udfs' VERSION '^3';
+ERROR HY000: Can't find symbol 'no_such_function' in library
+SELECT metaphon('hello') AS metaphon;
+metaphon
+HL
+SELECT version, constraint_spec FROM mysql.package;
+version	constraint_spec
+1.1.0	^1
+SELECT dl FROM mysql.func WHERE name = 'metaphon';
+dl
+pkg://udfs@1.1.0/udf_example.so
+# A new constraint crosses a major version deliberately.
+UPGRADE PACKAGE 'udfs' VERSION '^2';
+SELECT version, constraint_spec FROM mysql.package;
+version	constraint_spec
+2.0.0	^2
+SELECT dl FROM mysql.func WHERE name = 'metaphon';
+dl
+pkg://udfs@2.0.0/udf_example.so
+SELECT metaphon('hello') AS metaphon;
+metaphon
+HL
+UPGRADE PACKAGE 'missing';
+ERROR HY000: Package 'missing' is not installed.
+# An engine that no table uses is upgraded at once.
+INSTALL PACKAGE 'engine' VERSION '1.0.0';
+UPGRADE PACKAGE 'engine' VERSION '1.1.0';
+SELECT version, pending_version FROM mysql.package WHERE name = 'engine';
+version	pending_version
+1.1.0	NULL
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+dl
+pkg://engine@1.1.0/ha_example.so
+# An engine that tables use cannot be removed or change its objects.
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+UNINSTALL PACKAGE 'engine';
+ERROR HY000: Package 'engine' cannot be removed while 1 tables use its storage engine EXAMPLE.
+UPGRADE PACKAGE 'engine' VERSION '2.0.0';
+ERROR HY000: Package 'engine' cannot be removed while 1 tables use its storage engine EXAMPLE.
+# Its new version is staged and replaces it at the next restart.
+UPGRADE PACKAGE 'engine' VERSION '1.2.0';
+Warnings:
+Note	6942	Package 'engine' 1.2.0 replaces 1.1.0 at the next restart, because tables use its storage engine EXAMPLE.
+SELECT version, constraint_spec, pending_version FROM mysql.package
+WHERE name = 'engine';
+version	constraint_spec	pending_version
+1.1.0	1.1.0	1.2.0
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+dl
+pkg://engine@1.1.0/ha_example.so
+UPGRADE PACKAGE 'engine' VERSION '1.3.0';
+ERROR HY000: Package 'engine' has 1.2.0 staged for the next restart.
+# restart
+SELECT version, constraint_spec, pending_version FROM mysql.package
+WHERE name = 'engine';
+version	constraint_spec	pending_version
+1.2.0	1.2.0	NULL
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+dl
+pkg://engine@1.2.0/ha_example.so
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int DEFAULT NULL
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+# A staged version that no longer verifies is discarded at restart.
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+UPGRADE PACKAGE 'engine' VERSION '1.3.0';
+Warnings:
+Note	6942	Package 'engine' 1.3.0 replaces 1.2.0 at the next restart, because tables use its storage engine EXAMPLE.
+# restart
+SELECT version, pending_version FROM mysql.package WHERE name = 'engine';
+version	pending_version
+1.2.0	NULL
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+dl
+pkg://engine@1.2.0/ha_example.so
+include/assert_grep.inc [The tampered staged version is reported]
+DROP TABLE t1;
+UNINSTALL PACKAGE 'engine';
+UNINSTALL PACKAGE 'udfs';
+SELECT COUNT(*) FROM mysql.package;
+COUNT(*)
+0
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;

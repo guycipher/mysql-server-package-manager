@@ -1,0 +1,152 @@
+# UPGRADE PACKAGE moves a package to the newest version its constraint
+# allows, installs the previous version again when the new one fails, and
+# stages a storage engine that tables still use until the next restart.
+
+--source ../include/have_package_tools.inc
+
+call mtr.add_suppression("Package engine 1.3.0 staged for restart was not applied");
+
+--let $tmp = $MYSQLTEST_VARDIR/tmp/pkgreg
+--let $store = $MYSQLTEST_VARDIR/pkgstore
+--let $plugin_dir = `SELECT @@plugin_dir`
+--let PKG_TMP = $tmp
+--let PKG_SERVER = `SELECT SUBSTRING_INDEX(@@version, '-', 1)`
+--let $key = `SELECT @@build_compat_key`
+--mkdir $tmp
+
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/signer > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY init $tmp/reg --key $tmp/signer.pem
+
+perl;
+  my $tmp = $ENV{PKG_TMP};
+  my $metaphon = "[[object]]\ntype = \"function\"\nname = \"metaphon\"\n" .
+                 "returns = \"STRING\"\n\n";
+  my $missing = "[[object]]\ntype = \"function\"\n" .
+                "name = \"no_such_function\"\nreturns = \"STRING\"\n\n";
+  my $example = "[[object]]\ntype = \"plugin\"\nname = \"EXAMPLE\"\n" .
+                "plugin_type = \"storage_engine\"\n\n";
+  my $any = "[compat]\nserver = \">=26.0.0\"\n";
+  my $exact = "[compat]\nserver = \"=$ENV{PKG_SERVER}\"\n";
+  my @manifests = (
+    ["udfs", "1.0.0", $metaphon . $any],
+    ["udfs", "1.1.0", $metaphon . $any],
+    ["udfs", "2.0.0", $metaphon . $any],
+    ["udfs", "3.0.0", $metaphon . $missing . $any],
+    ["engine", "1.0.0", $example . $exact],
+    ["engine", "1.1.0", $example . $exact],
+    ["engine", "1.2.0", $example . $exact],
+    ["engine", "1.3.0", $example . $exact],
+    ["engine", "2.0.0", $example . $metaphon . $exact],
+  );
+  for my $manifest (@manifests) {
+    my ($name, $version, $body) = @$manifest;
+    open(my $f, '>', "$tmp/$name-$version.toml") or die;
+    print $f "[package]\nname = \"$name\"\nversion = \"$version\"\n\n$body";
+    close $f;
+  }
+EOF
+
+--let $add = $MYSQL_PACKAGE_REGISTRY add $tmp/reg --key $tmp/signer.pem
+--exec $add $tmp/udfs-1.0.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/udfs-1.1.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/udfs-2.0.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/udfs-3.0.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/engine-1.0.0.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+--exec $add $tmp/engine-1.1.0.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+--exec $add $tmp/engine-1.2.0.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+--exec $add $tmp/engine-1.3.0.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+--exec $add $tmp/engine-2.0.0.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+
+--echo # An upgrade stays within the recorded constraint.
+INSTALL PACKAGE 'udfs' VERSION '1.0.0';
+UPGRADE PACKAGE 'udfs';
+UPGRADE PACKAGE 'udfs' VERSION '^1';
+SELECT version, constraint_spec FROM mysql.package;
+SELECT dl FROM mysql.func WHERE name = 'metaphon';
+--error 1
+--file_exists $store/udfs/1.0.0
+UPGRADE PACKAGE 'udfs';
+
+--echo # A version that fails to install leaves the previous one in place.
+--error ER_CANT_FIND_DL_ENTRY
+UPGRADE PACKAGE 'udfs' VERSION '^3';
+SELECT metaphon('hello') AS metaphon;
+SELECT version, constraint_spec FROM mysql.package;
+SELECT dl FROM mysql.func WHERE name = 'metaphon';
+--file_exists $store/udfs/1.1.0/udf_example.so
+--error 1
+--file_exists $store/udfs/3.0.0
+
+--echo # A new constraint crosses a major version deliberately.
+UPGRADE PACKAGE 'udfs' VERSION '^2';
+SELECT version, constraint_spec FROM mysql.package;
+SELECT dl FROM mysql.func WHERE name = 'metaphon';
+SELECT metaphon('hello') AS metaphon;
+--error ER_PACKAGE_NOT_INSTALLED
+UPGRADE PACKAGE 'missing';
+
+--echo # An engine that no table uses is upgraded at once.
+INSTALL PACKAGE 'engine' VERSION '1.0.0';
+UPGRADE PACKAGE 'engine' VERSION '1.1.0';
+SELECT version, pending_version FROM mysql.package WHERE name = 'engine';
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+
+--echo # An engine that tables use cannot be removed or change its objects.
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+--error ER_PACKAGE_ENGINE_IN_USE
+UNINSTALL PACKAGE 'engine';
+--error ER_PACKAGE_ENGINE_IN_USE
+UPGRADE PACKAGE 'engine' VERSION '2.0.0';
+--error 1
+--file_exists $store/engine/2.0.0
+
+--echo # Its new version is staged and replaces it at the next restart.
+UPGRADE PACKAGE 'engine' VERSION '1.2.0';
+SELECT version, constraint_spec, pending_version FROM mysql.package
+WHERE name = 'engine';
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+--error ER_PACKAGE_RESTART_PENDING
+UPGRADE PACKAGE 'engine' VERSION '1.3.0';
+--source include/restart_mysqld.inc
+SELECT version, constraint_spec, pending_version FROM mysql.package
+WHERE name = 'engine';
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+SHOW CREATE TABLE t1;
+--error 1
+--file_exists $store/engine/1.1.0
+--error 1
+--file_exists $store/engine/1.2.0/pending
+
+--echo # A staged version that no longer verifies is discarded at restart.
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+UPGRADE PACKAGE 'engine' VERSION '1.3.0';
+--append_file $store/engine/1.3.0/ha_example.so
+tampered
+EOF
+--source include/restart_mysqld.inc
+SELECT version, pending_version FROM mysql.package WHERE name = 'engine';
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+--error 1
+--file_exists $store/engine/1.3.0
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_select = Package engine 1.3.0 staged for restart was not applied, because the artifact does not match its sha256 digest
+--let $assert_count = 1
+--let $assert_text = The tampered staged version is reported
+--source include/assert_grep.inc
+
+DROP TABLE t1;
+UNINSTALL PACKAGE 'engine';
+UNINSTALL PACKAGE 'udfs';
+SELECT COUNT(*) FROM mysql.package;
+--error 1
+--file_exists $store/engine
+
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;
+--force-rmdir $tmp
+--force-rmdir $store
