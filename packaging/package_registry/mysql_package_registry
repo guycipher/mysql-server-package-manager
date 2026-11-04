@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026, Oracle and/or its affiliates.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License, version 2.0,
+# as published by the Free Software Foundation.
+#
+# This program is designed to work with certain software (including
+# but not limited to OpenSSL) that is licensed under separate terms,
+# as designated in a particular file or component or in included license
+# documentation.  The authors of MySQL hereby grant you an additional
+# permission to link the program and your derivative works with the
+# separately licensed software that they have either included with
+# the program or referenced in the documentation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License, version 2.0, for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+
+"""Create, sign and verify a MySQL package registry.
+
+A registry is static files: a signed index.toml, a signed manifest per
+package version, and the artifacts. Serve it from any HTTPS file host, or use
+it in place as a file:// registry. Signing uses the openssl command.
+
+  mysql_package_registry keygen KEY
+  mysql_package_registry init DIR --key KEY.pem
+  mysql_package_registry add DIR MANIFEST --key KEY.pem \\
+      [--binary COMPAT_KEY=FILE ...] [--libc COMPAT_KEY=LIBC ...]
+  mysql_package_registry verify DIR --trust-roots FILE
+"""
+
+import argparse
+import base64
+import hashlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import tomllib
+
+# DER prefix of an ed25519 SubjectPublicKeyInfo; the raw key follows it.
+ED25519_SPKI_PREFIX = bytes.fromhex("302a300506032b6570032100")
+
+
+def fail(message):
+    sys.exit(f"mysql_package_registry: {message}")
+
+
+def openssl(*args, data=None):
+    result = subprocess.run(["openssl", *args], input=data,
+                            capture_output=True)
+    if result.returncode != 0:
+        fail("openssl " + " ".join(args) + ": " +
+             result.stderr.decode(errors="replace").strip())
+    return result.stdout
+
+
+def sign(key, data):
+    with tempfile.NamedTemporaryFile() as message:
+        message.write(data)
+        message.flush()
+        raw = openssl("pkeyutl", "-sign", "-inkey", key, "-rawin",
+                      "-in", message.name)
+    return base64.b64encode(raw).decode()
+
+
+def verify(raw_key, data, signature):
+    with tempfile.TemporaryDirectory() as work:
+        key = os.path.join(work, "key.der")
+        message = os.path.join(work, "message")
+        sig = os.path.join(work, "sig")
+        with open(key, "wb") as f:
+            f.write(ED25519_SPKI_PREFIX + raw_key)
+        with open(message, "wb") as f:
+            f.write(data)
+        with open(sig, "wb") as f:
+            f.write(base64.b64decode(signature))
+        result = subprocess.run(
+            ["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", key,
+             "-keyform", "DER", "-rawin", "-in", message, "-sigfile", sig],
+            capture_output=True)
+    return result.returncode == 0
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def attestation(name, version, compat_key, digest):
+    return f"mysql-package-artifact 1 {name} {version} {compat_key} {digest}"
+
+
+def quote(value):
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def write_signed(path, text, key):
+    data = text.encode()
+    with open(path, "wb") as f:
+        f.write(data)
+    with open(path + ".sig", "w") as f:
+        f.write(sign(key, data) + "\n")
+    return data
+
+
+def write_index(registry, packages, key):
+    lines = ["format = 1", ""]
+    for entry in sorted(packages, key=lambda e: (e["name"], e["version"])):
+        lines += ["[[package]]",
+                  f"name = {quote(entry['name'])}",
+                  f"version = {quote(entry['version'])}",
+                  f"manifest = {quote(entry['manifest'])}",
+                  f"sha256 = {quote(entry['sha256'])}",
+                  ""]
+    write_signed(os.path.join(registry, "index.toml"), "\n".join(lines), key)
+
+
+def read_index(registry):
+    with open(os.path.join(registry, "index.toml"), "rb") as f:
+        index = tomllib.load(f)
+    if index.get("format") != 1:
+        fail("index.toml is not format 1")
+    return index.get("package", [])
+
+
+def without_binaries(text):
+    """The manifest text with every [[binary]] table removed."""
+    kept, skipping = [], False
+    for line in text.splitlines():
+        header = line.strip()
+        if header.startswith("["):
+            skipping = header == "[[binary]]"
+        if not skipping:
+            kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    return "\n".join(kept) + "\n"
+
+
+def pairs(values, option):
+    result = {}
+    for value in values or []:
+        compat_key, sep, rest = value.partition("=")
+        if not sep or not compat_key or not rest:
+            fail(f"{option} expects COMPAT_KEY=VALUE, not {value}")
+        result[compat_key] = rest
+    return result
+
+
+def cmd_keygen(args):
+    openssl("genpkey", "-algorithm", "ed25519", "-out", args.key + ".pem")
+    der = openssl("pkey", "-in", args.key + ".pem", "-pubout",
+                  "-outform", "DER")
+    with open(args.key + ".pub", "w") as f:
+        f.write(base64.b64encode(der[-32:]).decode() + "\n")
+    print(f"wrote {args.key}.pem, and {args.key}.pub for package_trust_roots")
+
+
+def cmd_init(args):
+    os.makedirs(args.registry, exist_ok=True)
+    if os.path.exists(os.path.join(args.registry, "index.toml")):
+        fail(f"{args.registry} already has an index.toml")
+    write_index(args.registry, [], args.key)
+
+
+def cmd_add(args):
+    with open(args.manifest, "rb") as f:
+        text = f.read().decode()
+    manifest = tomllib.loads(text)
+    package = manifest.get("package", {})
+    name, version = package.get("name"), package.get("version")
+    if not name or not version:
+        fail("[package] needs a name and a version")
+
+    packages = [e for e in read_index(args.registry)
+                if (e["name"], e["version"]) != (name, version)]
+    directory = os.path.join(name, version)
+    os.makedirs(os.path.join(args.registry, directory), exist_ok=True)
+
+    libcs = pairs(args.libc, "--libc")
+    text = without_binaries(text)
+    for compat_key, path in pairs(args.binary, "--binary").items():
+        with open(path, "rb") as f:
+            artifact = f.read()
+        digest = sha256(artifact)
+        file_name = os.path.basename(path)
+        shutil.copyfile(path, os.path.join(args.registry, directory,
+                                           file_name))
+        text += "\n[[binary]]\n"
+        text += f"key = {quote(compat_key)}\n"
+        if compat_key in libcs:
+            text += f"libc = {quote(libcs[compat_key])}\n"
+        text += f"url = {quote(directory + '/' + file_name)}\n"
+        text += f"sha256 = {quote(digest)}\n"
+        signed = attestation(name, version, compat_key, digest).encode()
+        text += f"signature = {quote(sign(args.key, signed))}\n"
+
+    manifest_path = directory + "/package.toml"
+    data = write_signed(os.path.join(args.registry, manifest_path), text,
+                        args.key)
+    packages.append({"name": name, "version": version,
+                     "manifest": manifest_path, "sha256": sha256(data)})
+    write_index(args.registry, packages, args.key)
+    print(f"added {name} {version}")
+
+
+def cmd_verify(args):
+    keys = []
+    with open(args.trust_roots) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                keys.append(base64.b64decode(line))
+
+    def signed_by_root(data, signature):
+        return any(verify(k, data, signature) for k in keys)
+
+    def read(path):
+        with open(os.path.join(args.registry, path), "rb") as f:
+            return f.read()
+
+    problems = []
+    if not signed_by_root(read("index.toml"), read("index.toml.sig").decode()):
+        fail("index.toml is not signed by a trust root")
+    for entry in read_index(args.registry):
+        label = f"{entry['name']} {entry['version']}"
+        data = read(entry["manifest"])
+        if sha256(data) != entry["sha256"]:
+            problems.append(f"{label}: manifest does not match the index")
+            continue
+        if not signed_by_root(data, read(entry["manifest"] + ".sig").decode()):
+            problems.append(f"{label}: manifest is not signed by a trust root")
+            continue
+        manifest = tomllib.loads(data.decode())
+        for binary in manifest.get("binary", []):
+            artifact = read(binary["url"])
+            if sha256(artifact) != binary["sha256"]:
+                problems.append(f"{label}: {binary['url']} digest mismatch")
+            elif not signed_by_root(
+                    attestation(entry["name"], entry["version"],
+                                binary["key"], binary["sha256"]).encode(),
+                    binary["signature"]):
+                problems.append(f"{label}: {binary['key']} attestation "
+                                "is not signed by a trust root")
+    for problem in problems:
+        print(problem)
+    if problems:
+        sys.exit(1)
+    print("registry verified")
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="mysql_package_registry")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    keygen = commands.add_parser("keygen", help="create a signing key")
+    keygen.add_argument("key", help="writes KEY.pem and KEY.pub")
+    keygen.set_defaults(run=cmd_keygen)
+
+    init = commands.add_parser("init", help="create an empty registry")
+    init.add_argument("registry")
+    init.add_argument("--key", required=True)
+    init.set_defaults(run=cmd_init)
+
+    add = commands.add_parser("add", help="add or replace a package version")
+    add.add_argument("registry")
+    add.add_argument("manifest")
+    add.add_argument("--key", required=True)
+    add.add_argument("--binary", action="append",
+                     help="COMPAT_KEY=FILE, a prebuilt artifact")
+    add.add_argument("--libc", action="append",
+                     help="COMPAT_KEY=LIBC, the oldest C library it needs")
+    add.set_defaults(run=cmd_add)
+
+    check = commands.add_parser("verify", help="verify the whole registry")
+    check.add_argument("registry")
+    check.add_argument("--trust-roots", required=True)
+    check.set_defaults(run=cmd_verify)
+
+    args = parser.parse_args()
+    args.run(args)
+
+
+if __name__ == "__main__":
+    main()

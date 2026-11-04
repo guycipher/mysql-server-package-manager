@@ -3508,6 +3508,10 @@ sub environment_setup {
     client_arguments_no_grp_suffix("mysql_config_editor");
   $ENV{'MYSQL_SECURE_INSTALLATION'} =
     "$path_client_bindir/mysql_secure_installation";
+  $ENV{'MYSQL_PACKAGE_BUILD'} =
+    mtr_exe_maybe_exists("$path_client_bindir/mysql_package_build");
+  $ENV{'MYSQL_PACKAGE_REGISTRY'} = mtr_file_exists(
+    "$glob_mysql_test_dir/../packaging/package_registry/mysql_package_registry");
   $ENV{'OPENSSL_EXECUTABLE'} = $exe_openssl;
   $ENV{'MYSQLTEST_SAFE_PROCESS'} = mtr_exe_exists("$path_client_bindir/mysqltest_safe_process");
 

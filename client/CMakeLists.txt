@@ -29,6 +29,9 @@ DISABLE_MISSING_PROFILE_WARNING()
 ## Subdirectory for mysql_migrate_keyring code.
 ADD_SUBDIRECTORY(migrate_keyring)
 
+## Subdirectory for the mysql_package_build helper.
+ADD_SUBDIRECTORY(package)
+
 MYSQL_ADD_EXECUTABLE(mysql
   ${CMAKE_SOURCE_DIR}/sql-common/net_ns.cc
   completion_hash.cc

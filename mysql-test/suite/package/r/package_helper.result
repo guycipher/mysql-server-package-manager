@@ -1,0 +1,60 @@
+registry verified
+# Latest compatible: 2.0.0 needs another server, so 1.1.0.
+status=ok
+name=qa
+version=1.1.0
+object=component
+origin=binary
+key=KEY
+sha256=SHA256
+signature=SIGNATURE
+staged=TMP/stage/component_query_attributes.so
+# The staged artifact is the one the registry signed.
+# Refusals name what was sought and what exists.
+status=error
+error=ER_PACKAGE_NO_MATCHING_VERSION
+arg=qa
+arg=^3
+arg=1.0.0, 1.1.0, 2.0.0
+status=error
+error=ER_PACKAGE_NOT_FOUND
+arg=missing
+arg=file://TMP/reg
+status=error
+error=ER_PACKAGE_LIBC_TOO_NEW
+arg=qa
+arg=1.0.0
+arg=glibc-99.0
+arg=LIBC
+status=error
+error=ER_PACKAGE_NO_ARTIFACT
+arg=qa
+arg=1.1.0
+arg=mysql-26.10.0/othersys-x86_64/gcc12-cxx11abi/release
+arg=KEY
+status=error
+error=ER_PACKAGE_MANIFEST_INVALID
+arg=engine
+arg=a storage engine, daemon or information schema plugin needs an exact [compat] server version
+# A registry signed by a key that is not a trust root is refused.
+status=error
+error=ER_PACKAGE_BAD_SIGNATURE
+arg=file://TMP/reg/index.toml
+# With no trust roots, packages are disabled.
+status=error
+error=ER_PACKAGES_DISABLED
+# A tampered artifact or manifest is refused.
+status=error
+error=ER_PACKAGE_DIGEST_MISMATCH
+arg=qa
+arg=1.1.0
+status=error
+error=ER_PACKAGE_BAD_SIGNATURE
+arg=file://TMP/tampered/qa/1.1.0/package.toml
+# The pre-upgrade check, for this server and a later one.
+status=ok
+available=yes
+note=artifact for KEY
+status=ok
+available=no
+note=no artifact for mysql-99.0.0/linux-x86_64/gcc12-cxx11abi/release

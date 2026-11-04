@@ -1,0 +1,126 @@
+# mysql_package_build resolves a package against this server's own
+# compatibility key, verifies the signed index, manifest and artifact, and
+# reports refusals by server error name with what was sought and what exists.
+
+--source ../include/have_package_tools.inc
+
+--let $tmp = $MYSQLTEST_VARDIR/tmp/package_helper
+--let $key = `SELECT @@build_compat_key`
+--let $libc = `SELECT @@build_libc`
+--let $plugin_dir = `SELECT @@plugin_dir`
+--mkdir $tmp
+--mkdir $tmp/stage
+
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/signer > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/other > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY init $tmp/reg --key $tmp/signer.pem
+
+--write_file $tmp/qa-1.0.0.toml
+[package]
+name = "qa"
+version = "1.0.0"
+
+[[object]]
+type = "component"
+
+[compat]
+server = ">=26.0.0"
+EOF
+--write_file $tmp/qa-1.1.0.toml
+[package]
+name = "qa"
+version = "1.1.0"
+
+[[object]]
+type = "component"
+
+[compat]
+server = ">=26.0.0"
+EOF
+--write_file $tmp/qa-2.0.0.toml
+[package]
+name = "qa"
+version = "2.0.0"
+
+[[object]]
+type = "component"
+
+[compat]
+server = ">=99.0.0"
+EOF
+--write_file $tmp/engine-1.0.0.toml
+[package]
+name = "engine"
+version = "1.0.0"
+
+[[object]]
+type = "plugin"
+name = "EXAMPLE"
+plugin_type = "storage_engine"
+
+[compat]
+server = ">=26.0.0"
+EOF
+
+--let $artifact = $plugin_dir/component_query_attributes.so
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/qa-1.0.0.toml --key $tmp/signer.pem --binary "$key=$artifact" --libc "$key=glibc-99.0" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/qa-1.1.0.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/qa-2.0.0.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/engine-1.0.0.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY verify $tmp/reg --trust-roots $tmp/signer.pub
+
+--let $common = --registry file://$tmp/reg --key $key --libc $libc --staging $tmp/stage
+
+--echo # Latest compatible: 2.0.0 needs another server, so 1.1.0.
+--replace_result $tmp TMP $key KEY
+--replace_regex /sha256=[0-9a-f]{64}/sha256=SHA256/ /signature=[^\n]*/signature=SIGNATURE/
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint latest $common --trust-roots $tmp/signer.pub
+
+--echo # The staged artifact is the one the registry signed.
+--exec cmp $artifact $tmp/stage/component_query_attributes.so
+
+--echo # Refusals name what was sought and what exists.
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint "^3" $common --trust-roots $tmp/signer.pub
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name missing --constraint latest $common --trust-roots $tmp/signer.pub
+--replace_result $tmp TMP $key KEY $libc LIBC
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint "=1.0.0" $common --trust-roots $tmp/signer.pub
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint latest --registry file://$tmp/reg --key mysql-26.10.0/othersys-x86_64/gcc12-cxx11abi/release --libc $libc --staging $tmp/stage --trust-roots $tmp/signer.pub
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name engine --constraint latest $common --trust-roots $tmp/signer.pub
+
+--echo # A registry signed by a key that is not a trust root is refused.
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint latest $common --trust-roots $tmp/other.pub
+
+--echo # With no trust roots, packages are disabled.
+--write_file $tmp/none.pub
+EOF
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint latest $common --trust-roots $tmp/none.pub
+
+--echo # A tampered artifact or manifest is refused.
+--exec cp -r $tmp/reg $tmp/tampered
+--exec printf x >> $tmp/tampered/qa/1.1.0/component_query_attributes.so
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint "=1.1.0" --registry file://$tmp/tampered --key $key --libc $libc --staging $tmp/stage --trust-roots $tmp/signer.pub
+--exec sed -i 's/component/plugin/' $tmp/tampered/qa/1.1.0/package.toml
+--replace_result $tmp TMP $key KEY
+--error 1
+--exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint "=1.1.0" --registry file://$tmp/tampered --key $key --libc $libc --staging $tmp/stage --trust-roots $tmp/signer.pub
+
+--echo # The pre-upgrade check, for this server and a later one.
+--replace_result $key KEY
+--exec $MYSQL_PACKAGE_BUILD check --name qa --version 1.1.0 --registry file://$tmp/reg --key $key --libc $libc --trust-roots $tmp/signer.pub
+--exec $MYSQL_PACKAGE_BUILD check --name qa --version 1.1.0 --registry file://$tmp/reg --key mysql-99.0.0/linux-x86_64/gcc12-cxx11abi/release --libc $libc --trust-roots $tmp/signer.pub
+
+--force-rmdir $tmp
