@@ -3555,3 +3555,11 @@ bool install_plugin_for_package(THD *thd, LEX_CSTRING name,
 bool uninstall_plugin_for_package(THD *thd, LEX_CSTRING name) {
   return mysql_uninstall_plugin(thd, name);
 }
+
+bool plugin_in_use(const LEX_CSTRING &name, int type) {
+  mysql_mutex_lock(&LOCK_plugin);
+  const st_plugin_int *plugin = plugin_find_internal(name, type);
+  const bool in_use = plugin != nullptr && plugin->ref_count > 0;
+  mysql_mutex_unlock(&LOCK_plugin);
+  return in_use;
+}

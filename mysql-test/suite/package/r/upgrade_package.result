@@ -50,16 +50,26 @@ version	pending_version
 SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
 dl
 pkg://engine@1.1.0/ha_example.so
+# An engine a session still holds, with no tables, is in use too.
+SET SESSION default_storage_engine = EXAMPLE;
+UPGRADE PACKAGE 'engine' VERSION '2.0.0';
+ERROR HY000: Package 'engine' cannot be removed, or change what it installs, while its storage engine EXAMPLE is in use.
+SELECT version FROM mysql.package WHERE name = 'engine';
+version
+1.1.0
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+dl
+pkg://engine@1.1.0/ha_example.so
 # An engine that tables use cannot be removed or change its objects.
 CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
 UNINSTALL PACKAGE 'engine';
-ERROR HY000: Package 'engine' cannot be removed while 1 tables use its storage engine EXAMPLE.
+ERROR HY000: Package 'engine' cannot be removed, or change what it installs, while its storage engine EXAMPLE is in use.
 UPGRADE PACKAGE 'engine' VERSION '2.0.0';
-ERROR HY000: Package 'engine' cannot be removed while 1 tables use its storage engine EXAMPLE.
+ERROR HY000: Package 'engine' cannot be removed, or change what it installs, while its storage engine EXAMPLE is in use.
 # Its new version is staged and replaces it at the next restart.
 UPGRADE PACKAGE 'engine' VERSION '1.2.0';
 Warnings:
-Note	6942	Package 'engine' 1.2.0 replaces 1.1.0 at the next restart, because tables use its storage engine EXAMPLE.
+Note	6942	Package 'engine' 1.2.0 replaces 1.1.0 at the next restart, because its storage engine EXAMPLE is in use.
 SELECT version, constraint_spec, pending_version FROM mysql.package
 WHERE name = 'engine';
 version	constraint_spec	pending_version
@@ -86,7 +96,7 @@ t1	CREATE TABLE `t1` (
 SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
 UPGRADE PACKAGE 'engine' VERSION '1.3.0';
 Warnings:
-Note	6942	Package 'engine' 1.3.0 replaces 1.2.0 at the next restart, because tables use its storage engine EXAMPLE.
+Note	6942	Package 'engine' 1.3.0 replaces 1.2.0 at the next restart, because its storage engine EXAMPLE is in use.
 # restart
 SELECT version, pending_version FROM mysql.package WHERE name = 'engine';
 version	pending_version

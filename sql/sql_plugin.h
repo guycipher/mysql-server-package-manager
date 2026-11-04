@@ -203,6 +203,11 @@ bool install_plugin_for_package(THD *thd, LEX_CSTRING name,
                                 const LEX_STRING *dl);
 /** UNINSTALL PLUGIN as a step of a package statement. */
 bool uninstall_plugin_for_package(THD *thd, LEX_CSTRING name);
+/**
+  Whether any session or table still holds the plugin, so that UNINSTALL
+  PLUGIN would only mark it for removal at shutdown.
+*/
+bool plugin_in_use(const LEX_CSTRING &name, int type);
 
 /**
   Initialize one plugin.

@@ -95,6 +95,16 @@ UPGRADE PACKAGE 'engine' VERSION '1.1.0';
 SELECT version, pending_version FROM mysql.package WHERE name = 'engine';
 SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
 
+--echo # An engine a session still holds, with no tables, is in use too.
+--connect (con1, localhost, root)
+SET SESSION default_storage_engine = EXAMPLE;
+--connection default
+--error ER_PACKAGE_ENGINE_IN_USE
+UPGRADE PACKAGE 'engine' VERSION '2.0.0';
+SELECT version FROM mysql.package WHERE name = 'engine';
+SELECT dl FROM mysql.plugin WHERE name = 'EXAMPLE';
+--disconnect con1
+
 --echo # An engine that tables use cannot be removed or change its objects.
 CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
 --error ER_PACKAGE_ENGINE_IN_USE

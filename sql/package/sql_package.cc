@@ -849,34 +849,39 @@ bool uninstall_objects(THD *thd, const Package_row &row,
   return false;
 }
 
-/* Counts the tables that use the storage engines among objects, and names
-   the first engine that has any. */
-bool count_engine_tables(THD *thd, const std::vector<Package_object> &objects,
-                         uint *count, std::string *engine) {
-  *count = 0;
+/* Names the first storage engine among objects that tables use, or with
+   sessions set, that any session still holds, since such an engine cannot
+   be unloaded until the server restarts. */
+bool engine_in_use(THD *thd, const std::vector<Package_object> &objects,
+                   bool sessions, std::string *engine) {
+  engine->clear();
   const dd::cache::Dictionary_client::Auto_releaser releaser(thd->dd_client());
   std::vector<const dd::Schema *> schemas;
   bool fetched = false;
   for (const Package_object &object : objects) {
     if (object.type != "plugin") continue;
+    const LEX_CSTRING name = {object.name.c_str(), object.name.length()};
     plugin_ref plugin =
-        plugin_lock_by_name(thd, {object.name.c_str(), object.name.length()},
-                            MYSQL_STORAGE_ENGINE_PLUGIN);
+        plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN);
     if (plugin == nullptr) continue;
     plugin_unlock(thd, plugin);
+    if (sessions && plugin_in_use(name, MYSQL_STORAGE_ENGINE_PLUGIN)) {
+      *engine = object.name;
+      return false;
+    }
     if (!fetched && thd->dd_client()->fetch_global_components(&schemas))
       return true;
     fetched = true;
-    uint tables = 0;
     for (const dd::Schema *schema : schemas) {
       std::vector<dd::String_type> names;
       if (thd->dd_client()->fetch_schema_table_names_by_engine(
               schema, object.name.c_str(), &names))
         return true;
-      tables += names.size();
+      if (!names.empty()) {
+        *engine = object.name;
+        return false;
+      }
     }
-    if (tables > 0 && *count == 0) *engine = object.name;
-    *count += tables;
   }
   return false;
 }
@@ -1353,16 +1358,14 @@ bool Sql_cmd_upgrade_package::execute(THD *thd) {
   auto store_guard = create_scope_guard([&] { remove_tree(version_dir); });
 
   describe_functions(&previous.objects);
-  uint tables = 0;
   std::string engine;
-  if (count_engine_tables(thd, previous.objects, &tables, &engine)) return true;
+  if (engine_in_use(thd, previous.objects, true, &engine)) return true;
 
-  if (tables > 0) {
+  if (!engine.empty()) {
     /* The engine stays loaded until restart, so only its library can
        change, not what the package installs. */
     if (!same_objects(previous.objects, row.objects)) {
-      my_error(ER_PACKAGE_ENGINE_IN_USE, MYF(0), name.c_str(), tables,
-               engine.c_str());
+      my_error(ER_PACKAGE_ENGINE_IN_USE, MYF(0), name.c_str(), engine.c_str());
       return true;
     }
     if (write_file(version_dir + FN_LIBCHAR + pending_file,
@@ -1439,12 +1442,12 @@ bool Sql_cmd_uninstall_package::execute(THD *thd) {
   }
   Package_row &row = installed[0];
 
-  uint tables = 0;
+  /* An engine only a session still holds is removed at shutdown, as
+     UNINSTALL PLUGIN does. */
   std::string engine;
-  if (count_engine_tables(thd, row.objects, &tables, &engine)) return true;
-  if (tables > 0) {
-    my_error(ER_PACKAGE_ENGINE_IN_USE, MYF(0), name.c_str(), tables,
-             engine.c_str());
+  if (engine_in_use(thd, row.objects, false, &engine)) return true;
+  if (!engine.empty()) {
+    my_error(ER_PACKAGE_ENGINE_IN_USE, MYF(0), name.c_str(), engine.c_str());
     return true;
   }
 

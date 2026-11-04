@@ -11146,7 +11146,7 @@ ER_PACKAGE_NOT_INSTALLED
   eng "Package '%.64s' is not installed."
 
 ER_PACKAGE_ENGINE_IN_USE
-  eng "Package '%.64s' cannot be removed while %u tables use its storage engine %.64s."
+  eng "Package '%.64s' cannot be removed, or change what it installs, while its storage engine %.64s is in use."
 
 ER_PACKAGE_TABLE_INCORRECT
   eng "The mysql.package table is missing or has an incorrect definition."
@@ -11155,7 +11155,7 @@ ER_PACKAGE_ALREADY_CURRENT
   eng "Package '%.64s' is already at %.32s, the newest version that satisfies '%.64s'."
 
 ER_PACKAGE_UPGRADE_PENDING
-  eng "Package '%.64s' %.32s replaces %.32s at the next restart, because tables use its storage engine %.64s."
+  eng "Package '%.64s' %.32s replaces %.32s at the next restart, because its storage engine %.64s is in use."
 
 ER_PACKAGE_RESTART_PENDING
   eng "Package '%.64s' has %.32s staged for the next restart."

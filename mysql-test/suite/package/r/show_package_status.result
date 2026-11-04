@@ -28,7 +28,7 @@ udfs	1.0.0	YES	1.1.0	artifact for KEY
 CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
 UPGRADE PACKAGE 'engine';
 Warnings:
-Note	6942	Package 'engine' 1.0.1 replaces 1.0.0 at the next restart, because tables use its storage engine EXAMPLE.
+Note	6942	Package 'engine' 1.0.1 replaces 1.0.0 at the next restart, because its storage engine EXAMPLE is in use.
 SHOW PACKAGE STATUS 'engine';
 Package	Version	Constraint	Newest	Update_available	Pending_version	Note
 engine	1.0.0	latest	1.0.1	NO	1.0.1	
