@@ -71,8 +71,23 @@ MACRO(MYSQL_INSTALL_PLUGIN_SDK)
       "${CMAKE_INSTALL_PREFIX}/${INSTALL_SDK_CMAKEDIR}" "${CMAKE_INSTALL_PREFIX}")
     CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/cmake/MySQLSDKConfig.cmake.in
       ${CMAKE_BINARY_DIR}/MySQLSDKConfig.cmake @ONLY)
+    # The SDK is the server's own headers, so its version is the server's,
+    # and an extension asks for the exact one it is built for.
+    INCLUDE(CMakePackageConfigHelpers)
+    WRITE_BASIC_PACKAGE_VERSION_FILE(
+      ${CMAKE_BINARY_DIR}/MySQLSDKConfigVersion.cmake
+      VERSION ${MYSQL_NO_DASH_VERSION}
+      COMPATIBILITY ExactVersion)
     INSTALL(FILES ${CMAKE_BINARY_DIR}/MySQLSDKConfig.cmake
+      ${CMAKE_BINARY_DIR}/MySQLSDKConfigVersion.cmake
       DESTINATION ${INSTALL_SDK_CMAKEDIR}
+      COMPONENT PluginSDK)
+
+    CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/cmake/plugin_sdk_readme.txt.in
+      ${CMAKE_BINARY_DIR}/plugin_sdk_readme.txt @ONLY)
+    INSTALL(FILES ${CMAKE_BINARY_DIR}/plugin_sdk_readme.txt
+      DESTINATION ${INSTALL_SDK_INCLUDEDIR}
+      RENAME README
       COMPONENT PluginSDK)
   ENDIF()
 ENDMACRO()

@@ -1,0 +1,19 @@
+MySQL plugin SDK for MySQL @MYSQL_NO_DASH_VERSION@
+
+These are the server's own headers, as they were when this server was
+built. They are installed so that plugins, loadable functions and
+components can be built without the server source tree. They make no
+compatibility promise beyond what the server checks when it loads an
+extension.
+
+Storage engine, daemon and information schema plugins are version locked.
+One built against this SDK loads only into a server of exactly this
+version, with the same compatibility key, which the server reports as
+@@build_compat_key.
+
+Other plugin kinds, loadable functions and components are checked against
+their own interface versions, and may load into other releases whose
+interfaces match.
+
+The compile and link flags this SDK records are part of the ABI. Build
+with them, as MYSQL_SDK_ADD_PLUGIN in the MySQLSDK CMake package does.
