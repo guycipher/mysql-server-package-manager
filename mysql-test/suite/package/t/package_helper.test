@@ -143,7 +143,13 @@ EOF
 
 --echo # A tampered artifact or manifest is refused.
 --exec cp -r $tmp/reg $tmp/tampered
---exec printf x >> $tmp/tampered/qa/1.1.0/component_query_attributes.so
+perl;
+  for my $file (glob("$ENV{MYSQLTEST_VARDIR}/tmp/package_helper/tampered/qa/1.1.0/*/component_query_attributes.so")) {
+    open(my $f, '>>', $file) or die;
+    print $f "x";
+    close $f;
+  }
+EOF
 --replace_result $tmp TMP $key KEY
 --error 1
 --exec $MYSQL_PACKAGE_BUILD resolve --name qa --constraint "=1.1.0" --registry file://$tmp/tampered --key $key --libc $libc --staging $tmp/stage --trust-roots $tmp/signer.pub

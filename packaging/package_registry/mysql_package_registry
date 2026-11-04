@@ -190,7 +190,11 @@ def cmd_add(args):
         with open(path, "rb") as f:
             artifact = f.read()
         digest = sha256(artifact)
-        file_name = os.path.basename(path)
+        # One directory per key, so artifacts for different platforms may
+        # share a file name, which is the name the server stores them under.
+        file_name = compat_key.replace("/", "_") + "/" + os.path.basename(path)
+        os.makedirs(os.path.join(args.registry, directory,
+                                 os.path.dirname(file_name)), exist_ok=True)
         shutil.copyfile(path, os.path.join(args.registry, directory,
                                            file_name))
         text += "\n[[binary]]\n"
