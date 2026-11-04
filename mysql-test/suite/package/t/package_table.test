@@ -1,4 +1,7 @@
-# mysql.package records how each package was installed.
+# mysql.package records how each package was installed, and
+# mysql.package_object every plugin, function and component it installed.
 
 SHOW CREATE TABLE mysql.package;
+SHOW CREATE TABLE mysql.package_object;
 SELECT COUNT(*) FROM mysql.package;
+SELECT COUNT(*) FROM mysql.package_object;

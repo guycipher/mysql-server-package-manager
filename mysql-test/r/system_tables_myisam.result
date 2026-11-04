@@ -109,6 +109,10 @@ mysql.package
 ERROR
 Storage engine 'MyISAM' does not support system tables. [mysql.package]
 @table_name
+mysql.package_object
+ERROR
+Storage engine 'MyISAM' does not support system tables. [mysql.package_object]
+@table_name
 mysql.password_history
 ERROR
 Storage engine 'MyISAM' does not support system tables. [mysql.password_history]
@@ -276,6 +280,8 @@ SEVERITY	ERRNO	MESSAGE
 ERROR	3554	Access to system table 'mysql.innodb_table_stats' is rejected.
 SEVERITY	ERRNO	MESSAGE
 Warning	1726	Storage engine 'MyISAM' does not support system tables. [mysql.package]
+SEVERITY	ERRNO	MESSAGE
+Warning	1726	Storage engine 'MyISAM' does not support system tables. [mysql.package_object]
 SEVERITY	ERRNO	MESSAGE
 Warning	1726	Storage engine 'MyISAM' does not support system tables. [mysql.password_history]
 SEVERITY	ERRNO	MESSAGE

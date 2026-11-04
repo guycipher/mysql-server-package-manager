@@ -368,8 +368,6 @@ DROP PREPARE stmt;
 SET @cmd = "CREATE TABLE IF NOT EXISTS package (
     name VARCHAR(64) CHARACTER SET ASCII NOT NULL COMMENT 'Package name.',
     version VARCHAR(32) CHARACTER SET ASCII NOT NULL COMMENT 'Installed version.',
-    kind ENUM('storage_engine', 'plugin', 'loadable_function', 'component') NOT NULL COMMENT 'Extension kind, which selects how it is installed.',
-    object_name VARCHAR(255) NOT NULL COMMENT 'Plugin or function name, or component URN.',
     registry VARCHAR(255) NOT NULL COMMENT 'Registry the package was resolved from.',
     compat_key VARCHAR(255) CHARACTER SET ASCII NOT NULL COMMENT 'Compatibility key of the installed artifact.',
     constraint_spec VARCHAR(64) CHARACTER SET ASCII NOT NULL COMMENT 'Version constraint as requested.',
@@ -378,6 +376,17 @@ SET @cmd = "CREATE TABLE IF NOT EXISTS package (
     installed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Install time.',
     pending_version VARCHAR(32) CHARACTER SET ASCII DEFAULT NULL COMMENT 'Staged update applied at restart.',
     PRIMARY KEY(name)) engine=INNODB DEFAULT CHARSET=utf8mb4 STATS_PERSISTENT=0 COMMENT 'Installed packages' ROW_FORMAT=DYNAMIC TABLESPACE=mysql";
+SET @str = CONCAT(@cmd, " ENCRYPTION='", @is_mysql_encrypted, "'");
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
+
+-- The plugins, functions and components each package installed
+SET @cmd = "CREATE TABLE IF NOT EXISTS package_object (
+    package VARCHAR(64) CHARACTER SET ASCII NOT NULL COMMENT 'Package that installed the object.',
+    type ENUM('plugin', 'function', 'component') NOT NULL COMMENT 'Which statement installs and removes it.',
+    name VARCHAR(255) NOT NULL COMMENT 'Plugin or function name, or component URN.',
+    PRIMARY KEY(package, type, name)) engine=INNODB DEFAULT CHARSET=utf8mb4 STATS_PERSISTENT=0 COMMENT 'Objects installed by packages' ROW_FORMAT=DYNAMIC TABLESPACE=mysql";
 SET @str = CONCAT(@cmd, " ENCRYPTION='", @is_mysql_encrypted, "'");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
