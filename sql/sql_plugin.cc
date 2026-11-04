@@ -343,6 +343,8 @@ static I_List<i_string> opt_early_plugin_load_list;
 I_List<i_string> *opt_early_plugin_load_list_ptr = &opt_early_plugin_load_list;
 char *opt_plugin_dir_ptr;
 char opt_plugin_dir[FN_REFLEN];
+char *opt_package_store_dir_ptr;
+char opt_package_store_dir[FN_REFLEN];
 /*
   When you ad a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.

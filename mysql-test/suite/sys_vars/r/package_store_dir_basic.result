@@ -1,0 +1,18 @@
+SELECT @@global.package_store_dir LIKE '%pkg/' AS default_under_basedir;
+default_under_basedir
+1
+SELECT @@global.package_store_dir = CONCAT(@@global.basedir, 'pkg/')
+AS resolved_against_basedir;
+resolved_against_basedir
+1
+SELECT @@session.package_store_dir;
+ERROR HY000: Variable 'package_store_dir' is a GLOBAL variable
+SELECT @@global.package_store_dir = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_store_dir';
+@@global.package_store_dir = VARIABLE_VALUE
+1
+SET GLOBAL package_store_dir = '/tmp';
+ERROR HY000: Variable 'package_store_dir' is a read only variable
+SET SESSION package_store_dir = '/tmp';
+ERROR HY000: Variable 'package_store_dir' is a read only variable

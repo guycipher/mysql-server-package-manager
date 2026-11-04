@@ -1,0 +1,61 @@
+# A pkg:// URN is refused until the scheme is installed.
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+ERROR HY000: Cannot acquire scheme load service implementation for schema 'pkg' in specified URN: 'pkg://query_attributes@1.0.0'.
+INSTALL COMPONENT 'file://component_pkg_scheme';
+# Stage an artifact the way the package manager would.
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+component_urn
+file://component_pkg_scheme
+pkg://query_attributes@1.0.0
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+function_works
+1
+# Loading the same artifact again is refused.
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+ERROR HY000: Cannot load component from specified URN: 'pkg://query_attributes@1.0.0'.
+# The same component from another file is not caught by the library
+# guard. Here the component refuses, because its function name is taken.
+INSTALL COMPONENT 'file://component_query_attributes';
+ERROR HY000: Initialization method provided by component 'mysql:query_attributes' failed.
+# Malformed and path escaping URNs are refused before anything is opened.
+INSTALL COMPONENT 'pkg://query_attributes';
+ERROR HY000: Cannot load component from specified URN: 'pkg://query_attributes'.
+INSTALL COMPONENT 'pkg://../query_attributes@1.0.0';
+ERROR HY000: Cannot load component from specified URN: 'pkg://../query_attributes@1.0.0'.
+INSTALL COMPONENT 'pkg://query_attributes@../../1.0.0';
+ERROR HY000: Cannot load component from specified URN: 'pkg://query_attributes@../../1.0.0'.
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0/x';
+ERROR HY000: Cannot load component from specified URN: 'pkg://query_attributes@1.0.0/x'.
+INSTALL COMPONENT 'pkg://query-attributes@1.0.0';
+ERROR HY000: Cannot load component from specified URN: 'pkg://query-attributes@1.0.0'.
+# An absent artifact fails cleanly.
+INSTALL COMPONENT 'pkg://query_attributes@9.9.9';
+ERROR HY000: Can't open shared library ARTIFACT
+# The scheme stays loaded while it serves a component.
+UNINSTALL COMPONENT 'file://component_pkg_scheme';
+ERROR HY000: De-initialization method provided by component 'mysql:pkg_scheme' failed.
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+component_urn
+file://component_pkg_scheme
+pkg://query_attributes@1.0.0
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+function_works
+1
+# The installed component survives a restart.
+# restart
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+component_urn
+file://component_pkg_scheme
+pkg://query_attributes@1.0.0
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+function_works
+1
+# Uninstall and reinstall through the same URN.
+UNINSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+function_works
+1
+UNINSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+UNINSTALL COMPONENT 'file://component_pkg_scheme';

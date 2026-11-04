@@ -1,0 +1,67 @@
+# The pkg:// dynamic loader scheme resolves pkg://name@version against
+# package_store_dir and loads through the file:// scheme.
+
+--let $plugin_dir = `SELECT @@plugin_dir`
+--let $store = $MYSQLTEST_VARDIR/pkgstore
+
+--echo # A pkg:// URN is refused until the scheme is installed.
+--error ER_COMPONENTS_NO_SCHEME_SERVICE
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+
+INSTALL COMPONENT 'file://component_pkg_scheme';
+
+--echo # Stage an artifact the way the package manager would.
+--mkdir $store
+--mkdir $store/query_attributes
+--mkdir $store/query_attributes/1.0.0
+--copy_file $plugin_dir/component_query_attributes.so $store/query_attributes/1.0.0/query_attributes.so
+
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+
+--echo # Loading the same artifact again is refused.
+--error ER_COMPONENTS_CANT_LOAD
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+
+--echo # The same component from another file is not caught by the library
+--echo # guard. Here the component refuses, because its function name is taken.
+--error ER_COMPONENTS_LOAD_CANT_INITIALIZE
+INSTALL COMPONENT 'file://component_query_attributes';
+
+--echo # Malformed and path escaping URNs are refused before anything is opened.
+--error ER_COMPONENTS_CANT_LOAD
+INSTALL COMPONENT 'pkg://query_attributes';
+--error ER_COMPONENTS_CANT_LOAD
+INSTALL COMPONENT 'pkg://../query_attributes@1.0.0';
+--error ER_COMPONENTS_CANT_LOAD
+INSTALL COMPONENT 'pkg://query_attributes@../../1.0.0';
+--error ER_COMPONENTS_CANT_LOAD
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0/x';
+--error ER_COMPONENTS_CANT_LOAD
+INSTALL COMPONENT 'pkg://query-attributes@1.0.0';
+
+--echo # An absent artifact fails cleanly.
+--replace_regex /shared library .*/shared library ARTIFACT/
+--error ER_CANT_OPEN_LIBRARY
+INSTALL COMPONENT 'pkg://query_attributes@9.9.9';
+
+--echo # The scheme stays loaded while it serves a component.
+--error ER_COMPONENTS_UNLOAD_CANT_DEINITIALIZE
+UNINSTALL COMPONENT 'file://component_pkg_scheme';
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+
+--echo # The installed component survives a restart.
+--source include/restart_mysqld.inc
+SELECT component_urn FROM mysql.component ORDER BY component_id;
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+
+--echo # Uninstall and reinstall through the same URN.
+UNINSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
+UNINSTALL COMPONENT 'pkg://query_attributes@1.0.0';
+
+UNINSTALL COMPONENT 'file://component_pkg_scheme';
+--force-rmdir $store

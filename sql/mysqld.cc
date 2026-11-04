@@ -13735,6 +13735,12 @@ static int fix_paths(void) {
   (void)my_load_path(opt_plugin_dir, opt_plugin_dir, mysql_home);
   opt_plugin_dir_ptr = opt_plugin_dir;
 
+  convert_dirname(opt_package_store_dir,
+                  opt_package_store_dir_ptr ? opt_package_store_dir_ptr : "pkg",
+                  NullS);
+  (void)my_load_path(opt_package_store_dir, opt_package_store_dir, mysql_home);
+  opt_package_store_dir_ptr = opt_package_store_dir;
+
   my_realpath(mysql_unpacked_real_data_home, mysql_real_data_home, MYF(0));
   mysql_unpacked_real_data_home_len = strlen(mysql_unpacked_real_data_home);
   if (mysql_unpacked_real_data_home[mysql_unpacked_real_data_home_len - 1] ==

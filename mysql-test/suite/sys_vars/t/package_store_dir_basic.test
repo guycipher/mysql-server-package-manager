@@ -1,0 +1,18 @@
+# Defaults to <basedir>/pkg and is resolved to an absolute path.
+SELECT @@global.package_store_dir LIKE '%pkg/' AS default_under_basedir;
+SELECT @@global.package_store_dir = CONCAT(@@global.basedir, 'pkg/')
+       AS resolved_against_basedir;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.package_store_dir;
+
+--disable_warnings
+SELECT @@global.package_store_dir = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_store_dir';
+--enable_warnings
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL package_store_dir = '/tmp';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET SESSION package_store_dir = '/tmp';

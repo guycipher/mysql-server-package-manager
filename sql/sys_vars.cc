@@ -3489,6 +3489,12 @@ static Sys_var_charptr Sys_plugin_dir(
     READ_ONLY NON_PERSIST GLOBAL_VAR(opt_plugin_dir_ptr),
     CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(nullptr));
 
+static Sys_var_charptr Sys_package_store_dir(
+    "package_store_dir",
+    "Directory holding verified package artifacts, resolved by pkg:// URNs",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(opt_package_store_dir_ptr),
+    CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(nullptr));
+
 static Sys_var_uint Sys_port(
     "port",
     "Port number to use for connection or 0 to default to, "
