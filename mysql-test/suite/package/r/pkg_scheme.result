@@ -14,8 +14,7 @@ function_works
 # Loading the same artifact again is refused.
 INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
 ERROR HY000: Cannot load component from specified URN: 'pkg://query_attributes@1.0.0'.
-# The same component from another file is not caught by the library
-# guard. Here the component refuses, because its function name is taken.
+# A second copy of the component from another file fails to register.
 INSTALL COMPONENT 'file://component_query_attributes';
 ERROR HY000: Initialization method provided by component 'mysql:query_attributes' failed.
 # Malformed and path escaping URNs are refused before anything is opened.

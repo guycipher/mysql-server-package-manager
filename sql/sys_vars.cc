@@ -118,6 +118,7 @@
 #include "sql/mdl.h"
 #include "sql/opt_trace_context.h"
 #include "sql/options_mysqld.h"
+#include "sql/package/package.h"
 #include "sql/protocol_classic.h"
 #include "sql/psi_memory_key.h"
 #include "sql/query_options.h"
@@ -3494,6 +3495,46 @@ static Sys_var_charptr Sys_package_store_dir(
     "Directory holding verified package artifacts, resolved by pkg:// URNs",
     READ_ONLY NON_PERSIST GLOBAL_VAR(opt_package_store_dir_ptr),
     CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(nullptr));
+
+static Sys_var_charptr Sys_package_helper(
+    "package_helper",
+    "The program that fetches, verifies and builds packages for the server",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(opt_package_helper_ptr),
+    CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(nullptr));
+
+static Sys_var_charptr Sys_package_trust_roots(
+    "package_trust_roots",
+    "File of ed25519 public keys allowed to sign packages. Empty trusts none",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(opt_package_trust_roots),
+    CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(""));
+
+static bool check_package_registry_allowlist(sys_var *, THD *, set_var *var) {
+  const char *value = var->save_result.string_value.str;
+  if (package_registry_allowlist_valid(value)) return false;
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "package_registry_allowlist", value);
+  return true;
+}
+
+static Sys_var_charptr Sys_package_registry_allowlist(
+    "package_registry_allowlist",
+    "Comma separated https:// or file:// registries packages may be "
+    "installed from. Empty disables packages",
+    GLOBAL_VAR(opt_package_registry_allowlist), CMD_LINE(REQUIRED_ARG),
+    IN_SYSTEM_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+    ON_CHECK(check_package_registry_allowlist));
+
+static Sys_var_bool Sys_package_allow_source_build(
+    "package_allow_source_build",
+    "Allow a package with no prebuilt artifact for this server to be built "
+    "from source on this host",
+    GLOBAL_VAR(opt_package_allow_source_build), CMD_LINE(OPT_ARG),
+    DEFAULT(false));
+
+static Sys_var_ulong Sys_package_build_timeout(
+    "package_build_timeout",
+    "Seconds a package source build may run before it is stopped",
+    GLOBAL_VAR(opt_package_build_timeout), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(1, 86400), DEFAULT(600), BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_port(
     "port",

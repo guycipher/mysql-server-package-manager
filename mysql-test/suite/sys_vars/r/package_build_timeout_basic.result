@@ -1,0 +1,25 @@
+SET @start_value = @@GLOBAL.package_build_timeout;
+SELECT @start_value AS default_seconds;
+default_seconds
+600
+SET GLOBAL package_build_timeout = 60;
+SELECT @@GLOBAL.package_build_timeout;
+@@GLOBAL.package_build_timeout
+60
+SET GLOBAL package_build_timeout = 0;
+Warnings:
+Warning	1292	Truncated incorrect package_build_timeout value: '0'
+SELECT @@GLOBAL.package_build_timeout;
+@@GLOBAL.package_build_timeout
+1
+SET GLOBAL package_build_timeout = 100000;
+Warnings:
+Warning	1292	Truncated incorrect package_build_timeout value: '100000'
+SELECT @@GLOBAL.package_build_timeout;
+@@GLOBAL.package_build_timeout
+86400
+SET GLOBAL package_build_timeout = 'soon';
+ERROR 42000: Incorrect argument type to variable 'package_build_timeout'
+SET SESSION package_build_timeout = 60;
+ERROR HY000: Variable 'package_build_timeout' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL package_build_timeout = @start_value;

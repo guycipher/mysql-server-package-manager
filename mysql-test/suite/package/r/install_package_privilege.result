@@ -1,0 +1,34 @@
+# root does not hold it after initialize.
+SELECT COUNT(*) AS root_has_it FROM mysql.global_grants
+WHERE priv = 'INSTALL_PACKAGE';
+root_has_it
+0
+CREATE USER dba@localhost;
+# GRANT ALL does not include it.
+GRANT ALL ON *.* TO dba@localhost;
+SELECT COUNT(*) AS dba_has_it FROM mysql.global_grants
+WHERE user = 'dba' AND priv = 'INSTALL_PACKAGE';
+dba_has_it
+0
+# Nor do SUPER and the plugin table privileges.
+GRANT SUPER ON *.* TO dba@localhost;
+Warnings:
+Warning	1287	The SUPER privilege identifier is deprecated
+GRANT INSERT, DELETE ON mysql.plugin TO dba@localhost;
+SELECT COUNT(*) AS dba_has_it FROM mysql.global_grants
+WHERE user = 'dba' AND priv = 'INSTALL_PACKAGE';
+dba_has_it
+0
+# Naming it grants it, and root may grant it without holding it.
+GRANT INSTALL_PACKAGE ON *.* TO dba@localhost;
+SELECT priv, with_grant_option FROM mysql.global_grants
+WHERE user = 'dba' AND priv = 'INSTALL_PACKAGE';
+priv	with_grant_option
+INSTALL_PACKAGE	N
+# REVOKE ALL removes it.
+REVOKE ALL ON *.* FROM dba@localhost;
+SELECT COUNT(*) AS dba_has_it FROM mysql.global_grants
+WHERE user = 'dba' AND priv = 'INSTALL_PACKAGE';
+dba_has_it
+0
+DROP USER dba@localhost;

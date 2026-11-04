@@ -395,6 +395,7 @@ bool Grant_validator::validate_dynamic_privileges() {
       */
       privileges_to_check = new (m_thd->mem_root) List<LEX_CSTRING>;
       iterate_all_dynamic_privileges(m_thd, [&](const char *str) {
+        if (!m_revoke && is_dynamic_privilege_explicit_only(str)) return false;
         LEX_CSTRING *new_str =
             reinterpret_cast<LEX_CSTRING *>(m_thd->alloc(sizeof(LEX_CSTRING)));
         new_str->str = str;
@@ -3635,6 +3636,8 @@ bool mysql_grant(THD *thd, const char *db, List<LEX_USER> &list,
           */
           privileges_to_check = new (thd->mem_root) List<LEX_CSTRING>;
           iterate_all_dynamic_privileges(thd, [&](const char *str) {
+            if (!revoke_grant && is_dynamic_privilege_explicit_only(str))
+              return false;
             LEX_CSTRING *new_str = reinterpret_cast<LEX_CSTRING *>(
                 thd->alloc(sizeof(LEX_CSTRING)));
             new_str->str = str;

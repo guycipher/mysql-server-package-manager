@@ -24,8 +24,7 @@ SELECT mysql_query_attribute_string('missing') IS NULL AS function_works;
 --error ER_COMPONENTS_CANT_LOAD
 INSTALL COMPONENT 'pkg://query_attributes@1.0.0';
 
---echo # The same component from another file is not caught by the library
---echo # guard. Here the component refuses, because its function name is taken.
+--echo # A second copy of the component from another file fails to register.
 --error ER_COMPONENTS_LOAD_CANT_INITIALIZE
 INSTALL COMPONENT 'file://component_query_attributes';
 

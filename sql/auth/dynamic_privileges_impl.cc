@@ -327,6 +327,7 @@ bool dynamic_privilege_init(void) {
   ret += service->register_privilege(STRING_WITH_LEN("OPTIMIZE_LOCAL_TABLE"));
   ret += service->register_privilege(
       STRING_WITH_LEN("MANAGE_DATA_MASKING_POLICY"));
+  ret += service->register_privilege(STRING_WITH_LEN("INSTALL_PACKAGE"));
 
   return ret != 0;
 }

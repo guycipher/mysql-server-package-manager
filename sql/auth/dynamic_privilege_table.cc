@@ -95,6 +95,14 @@ bool is_dynamic_privilege_deprecated(const std::string &str) {
 }
 
 /**
+  Dynamic privileges that GRANT ALL does not include, so that no account
+  holds them unless they are granted by name.
+*/
+bool is_dynamic_privilege_explicit_only(const std::string &str) {
+  return str == "INSTALL_PACKAGE";
+}
+
+/**
   Given an open table handler this function refresh the list of dynamic
   privilege grants by reading the dynamic_privilege table.
 

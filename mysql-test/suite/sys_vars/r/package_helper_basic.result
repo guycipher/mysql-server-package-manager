@@ -1,0 +1,15 @@
+SELECT COUNT(@@GLOBAL.package_helper);
+COUNT(@@GLOBAL.package_helper)
+1
+SET @@GLOBAL.package_helper = '/tmp';
+ERROR HY000: Variable 'package_helper' is a read only variable
+SELECT @@SESSION.package_helper;
+ERROR HY000: Variable 'package_helper' is a GLOBAL variable
+SELECT @@GLOBAL.package_helper = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_helper';
+@@GLOBAL.package_helper = VARIABLE_VALUE
+1
+SELECT @@GLOBAL.package_helper LIKE '%/bin/mysql_package_build' AS default_helper;
+default_helper
+1

@@ -1,0 +1,19 @@
+SHOW CREATE TABLE mysql.package;
+Table	Create Table
+package	CREATE TABLE `package` (
+  `name` varchar(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'Package name.',
+  `version` varchar(32) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'Installed version.',
+  `kind` enum('storage_engine','plugin','loadable_function','component') NOT NULL COMMENT 'Extension kind, which selects how it is installed.',
+  `object_name` varchar(255) NOT NULL COMMENT 'Plugin or function name, or component URN.',
+  `registry` varchar(255) NOT NULL COMMENT 'Registry the package was resolved from.',
+  `compat_key` varchar(255) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'Compatibility key of the installed artifact.',
+  `constraint_spec` varchar(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'Version constraint as requested.',
+  `artifact_sha256` char(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'Digest of the installed artifact.',
+  `origin` enum('binary','source') NOT NULL COMMENT 'Prebuilt, or built on this host.',
+  `installed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Install time.',
+  `pending_version` varchar(32) CHARACTER SET ascii COLLATE ascii_general_ci DEFAULT NULL COMMENT 'Staged update applied at restart.',
+  PRIMARY KEY (`name`)
+) /*!50100 TABLESPACE `mysql` */ ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC COMMENT='Installed packages'
+SELECT COUNT(*) FROM mysql.package;
+COUNT(*)
+0

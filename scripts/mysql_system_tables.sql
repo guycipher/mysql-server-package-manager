@@ -364,6 +364,25 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
+-- Packages installed with INSTALL PACKAGE
+SET @cmd = "CREATE TABLE IF NOT EXISTS package (
+    name VARCHAR(64) CHARACTER SET ASCII NOT NULL COMMENT 'Package name.',
+    version VARCHAR(32) CHARACTER SET ASCII NOT NULL COMMENT 'Installed version.',
+    kind ENUM('storage_engine', 'plugin', 'loadable_function', 'component') NOT NULL COMMENT 'Extension kind, which selects how it is installed.',
+    object_name VARCHAR(255) NOT NULL COMMENT 'Plugin or function name, or component URN.',
+    registry VARCHAR(255) NOT NULL COMMENT 'Registry the package was resolved from.',
+    compat_key VARCHAR(255) CHARACTER SET ASCII NOT NULL COMMENT 'Compatibility key of the installed artifact.',
+    constraint_spec VARCHAR(64) CHARACTER SET ASCII NOT NULL COMMENT 'Version constraint as requested.',
+    artifact_sha256 CHAR(64) CHARACTER SET ASCII NOT NULL COMMENT 'Digest of the installed artifact.',
+    origin ENUM('binary', 'source') NOT NULL COMMENT 'Prebuilt, or built on this host.',
+    installed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Install time.',
+    pending_version VARCHAR(32) CHARACTER SET ASCII DEFAULT NULL COMMENT 'Staged update applied at restart.',
+    PRIMARY KEY(name)) engine=INNODB DEFAULT CHARSET=utf8mb4 STATS_PERSISTENT=0 COMMENT 'Installed packages' ROW_FORMAT=DYNAMIC TABLESPACE=mysql";
+SET @str = CONCAT(@cmd, " ENCRYPTION='", @is_mysql_encrypted, "'");
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
+
 
 SET @cmd="CREATE TABLE IF NOT EXISTS slave_relay_log_info (
   Number_of_lines INTEGER UNSIGNED NOT NULL COMMENT 'Number of lines in the file or rows in the table. Used to version table definitions.',

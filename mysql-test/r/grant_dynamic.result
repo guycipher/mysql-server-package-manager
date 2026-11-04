@@ -1037,6 +1037,7 @@ Grant option	Databases,Tables,Functions,Procedures	To give to other users those 
 HELLOWORLD	Server Admin	
 INNODB_REDO_LOG_ARCHIVE	Server Admin	
 INNODB_REDO_LOG_ENABLE	Server Admin	
+INSTALL_PACKAGE	Server Admin	
 Index	Tables	To create or drop indexes
 Insert	Tables	To insert data into tables
 LENGTH_32_ABCDEFGHIJKLMNOPQRSTUX	Server Admin	

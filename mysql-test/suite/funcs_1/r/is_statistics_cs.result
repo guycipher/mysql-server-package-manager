@@ -115,6 +115,7 @@ def	mysql	innodb_index_stats	mysql	PRIMARY
 def	mysql	innodb_index_stats	mysql	PRIMARY
 def	mysql	innodb_table_stats	mysql	PRIMARY
 def	mysql	innodb_table_stats	mysql	PRIMARY
+def	mysql	package	mysql	PRIMARY
 def	mysql	password_history	mysql	PRIMARY
 def	mysql	password_history	mysql	PRIMARY
 def	mysql	password_history	mysql	PRIMARY

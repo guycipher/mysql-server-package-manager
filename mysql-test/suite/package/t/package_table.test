@@ -1,0 +1,4 @@
+# mysql.package records how each package was installed.
+
+SHOW CREATE TABLE mysql.package;
+SELECT COUNT(*) FROM mysql.package;

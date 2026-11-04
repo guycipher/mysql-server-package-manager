@@ -1,0 +1,16 @@
+SELECT COUNT(@@GLOBAL.package_trust_roots);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.package_trust_roots = '/tmp';
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.package_trust_roots;
+
+--disable_warnings
+SELECT @@GLOBAL.package_trust_roots = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_trust_roots';
+--enable_warnings
+
+# Trusts no key unless configured.
+SELECT @@GLOBAL.package_trust_roots = '' AS trusts_none;

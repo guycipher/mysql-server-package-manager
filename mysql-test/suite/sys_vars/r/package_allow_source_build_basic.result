@@ -1,0 +1,17 @@
+SET @start_value = @@GLOBAL.package_allow_source_build;
+SELECT @start_value AS off_by_default;
+off_by_default
+0
+SET GLOBAL package_allow_source_build = ON;
+SELECT @@GLOBAL.package_allow_source_build;
+@@GLOBAL.package_allow_source_build
+1
+SET GLOBAL package_allow_source_build = OFF;
+SELECT @@GLOBAL.package_allow_source_build;
+@@GLOBAL.package_allow_source_build
+0
+SET GLOBAL package_allow_source_build = 'maybe';
+ERROR 42000: Variable 'package_allow_source_build' can't be set to the value of 'maybe'
+SET SESSION package_allow_source_build = ON;
+ERROR HY000: Variable 'package_allow_source_build' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL package_allow_source_build = @start_value;

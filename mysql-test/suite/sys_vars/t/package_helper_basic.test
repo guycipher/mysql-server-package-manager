@@ -1,0 +1,16 @@
+SELECT COUNT(@@GLOBAL.package_helper);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.package_helper = '/tmp';
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.package_helper;
+
+--disable_warnings
+SELECT @@GLOBAL.package_helper = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_helper';
+--enable_warnings
+
+# Defaults to the helper shipped with the server.
+SELECT @@GLOBAL.package_helper LIKE '%/bin/mysql_package_build' AS default_helper;

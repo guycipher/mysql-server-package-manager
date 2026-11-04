@@ -153,8 +153,6 @@ extern I_List<i_string> *opt_plugin_load_list_ptr;
 extern I_List<i_string> *opt_early_plugin_load_list_ptr;
 extern char *opt_plugin_dir_ptr;
 extern char opt_plugin_dir[FN_REFLEN];
-extern char *opt_package_store_dir_ptr;
-extern char opt_package_store_dir[FN_REFLEN];
 extern const LEX_CSTRING plugin_type_names[];
 
 extern bool plugin_register_early_plugins(int *argc, char **argv, int flags);

@@ -830,6 +830,7 @@ MySQL clients support the protocol:
 #include "sql/opt_costconstantcache.h"  // delete_optimizer_cost_module
 #include "sql/opt_option_usage.h"       // Option tracker for optimizer usage
 #include "sql/options_mysqld.h"         // OPT_THREAD_CACHE_SIZE
+#include "sql/package/package.h"        // opt_package_store_dir
 #include "sql/partitioning/partition_handler.h"  // partitioning_init
 #include "sql/persisted_variable.h"              // Persisted_variables_cache
 #include "sql/plugin_table.h"
@@ -13740,6 +13741,12 @@ static int fix_paths(void) {
                   NullS);
   (void)my_load_path(opt_package_store_dir, opt_package_store_dir, mysql_home);
   opt_package_store_dir_ptr = opt_package_store_dir;
+
+  (void)my_load_path(opt_package_helper,
+                     opt_package_helper_ptr ? opt_package_helper_ptr
+                                            : "bin/mysql_package_build",
+                     mysql_home);
+  opt_package_helper_ptr = opt_package_helper;
 
   my_realpath(mysql_unpacked_real_data_home, mysql_real_data_home, MYF(0));
   mysql_unpacked_real_data_home_len = strlen(mysql_unpacked_real_data_home);

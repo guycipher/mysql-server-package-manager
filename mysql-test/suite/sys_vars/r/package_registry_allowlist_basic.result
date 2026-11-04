@@ -1,0 +1,28 @@
+SET @start_value = @@GLOBAL.package_registry_allowlist;
+SELECT @start_value = '' AS disabled_by_default;
+disabled_by_default
+1
+SET GLOBAL package_registry_allowlist = 'https://pkg.example';
+SELECT @@GLOBAL.package_registry_allowlist;
+@@GLOBAL.package_registry_allowlist
+https://pkg.example
+SET GLOBAL package_registry_allowlist = 'https://pkg.example, file:///srv/registry';
+SELECT @@GLOBAL.package_registry_allowlist;
+@@GLOBAL.package_registry_allowlist
+https://pkg.example, file:///srv/registry
+# Only https:// and file:// registries.
+SET GLOBAL package_registry_allowlist = 'http://pkg.example';
+ERROR 42000: Variable 'package_registry_allowlist' can't be set to the value of 'http://pkg.example'
+SET GLOBAL package_registry_allowlist = 'https://pkg.example,pkg.example';
+ERROR 42000: Variable 'package_registry_allowlist' can't be set to the value of 'https://pkg.example,pkg.example'
+SELECT @@GLOBAL.package_registry_allowlist;
+@@GLOBAL.package_registry_allowlist
+https://pkg.example, file:///srv/registry
+SET SESSION package_registry_allowlist = 'https://pkg.example';
+ERROR HY000: Variable 'package_registry_allowlist' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@GLOBAL.package_registry_allowlist = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_registry_allowlist';
+@@GLOBAL.package_registry_allowlist = VARIABLE_VALUE
+1
+SET GLOBAL package_registry_allowlist = @start_value;

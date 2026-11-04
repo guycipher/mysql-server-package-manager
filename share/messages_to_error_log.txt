@@ -13560,6 +13560,12 @@ ER_MRS_COMPONENT_WARNING
 ER_MRS_COMPONENT_ERROR
   eng "%s"
 
+ER_PACKAGE_LOG_OPERATION
+  eng "Package %s %s %s from %s, key %s, sha256 %s."
+
+ER_PACKAGE_LOG_HELPER_OUTPUT
+  eng "Package helper output for %s: %s"
+
 #
 # End of "9.7 cal-ver compatibility lineage (starts from 26.7)" messages intended to be written to the server error log.
 #

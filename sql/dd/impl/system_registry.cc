@@ -228,6 +228,7 @@ void System_tables::add_remaining_dd_tables() {
   register_table("help_relation", system);
   register_table("help_topic", system);
   register_table("ndb_binlog_index", system);
+  register_table("package", system);
   register_table("plugin", system);
   register_table("password_history", system);
   register_table("procs_priv", system);

@@ -1,0 +1,16 @@
+SET @start_value = @@GLOBAL.package_build_timeout;
+SELECT @start_value AS default_seconds;
+
+SET GLOBAL package_build_timeout = 60;
+SELECT @@GLOBAL.package_build_timeout;
+SET GLOBAL package_build_timeout = 0;
+SELECT @@GLOBAL.package_build_timeout;
+SET GLOBAL package_build_timeout = 100000;
+SELECT @@GLOBAL.package_build_timeout;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL package_build_timeout = 'soon';
+--error ER_GLOBAL_VARIABLE
+SET SESSION package_build_timeout = 60;
+
+SET GLOBAL package_build_timeout = @start_value;

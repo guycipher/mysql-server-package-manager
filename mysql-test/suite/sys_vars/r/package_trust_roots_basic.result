@@ -1,0 +1,15 @@
+SELECT COUNT(@@GLOBAL.package_trust_roots);
+COUNT(@@GLOBAL.package_trust_roots)
+1
+SET @@GLOBAL.package_trust_roots = '/tmp';
+ERROR HY000: Variable 'package_trust_roots' is a read only variable
+SELECT @@SESSION.package_trust_roots;
+ERROR HY000: Variable 'package_trust_roots' is a GLOBAL variable
+SELECT @@GLOBAL.package_trust_roots = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_trust_roots';
+@@GLOBAL.package_trust_roots = VARIABLE_VALUE
+1
+SELECT @@GLOBAL.package_trust_roots = '' AS trusts_none;
+trusts_none
+1

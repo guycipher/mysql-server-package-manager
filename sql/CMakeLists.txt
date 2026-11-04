@@ -480,6 +480,7 @@ SET(SQL_SHARED_SOURCES
   opt_trace.cc
   opt_trace2server.cc
   pack_rows.cc
+  package/package.cc
   parse_file.cc
   parse_tree_handler.cc
   parse_tree_helpers.cc

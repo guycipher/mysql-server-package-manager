@@ -1,0 +1,25 @@
+SET @start_value = @@GLOBAL.package_registry_allowlist;
+SELECT @start_value = '' AS disabled_by_default;
+
+SET GLOBAL package_registry_allowlist = 'https://pkg.example';
+SELECT @@GLOBAL.package_registry_allowlist;
+SET GLOBAL package_registry_allowlist = 'https://pkg.example, file:///srv/registry';
+SELECT @@GLOBAL.package_registry_allowlist;
+
+--echo # Only https:// and file:// registries.
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL package_registry_allowlist = 'http://pkg.example';
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL package_registry_allowlist = 'https://pkg.example,pkg.example';
+SELECT @@GLOBAL.package_registry_allowlist;
+
+--error ER_GLOBAL_VARIABLE
+SET SESSION package_registry_allowlist = 'https://pkg.example';
+
+--disable_warnings
+SELECT @@GLOBAL.package_registry_allowlist = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME = 'package_registry_allowlist';
+--enable_warnings
+
+SET GLOBAL package_registry_allowlist = @start_value;

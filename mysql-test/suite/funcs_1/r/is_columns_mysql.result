@@ -94,6 +94,17 @@ def	mysql	innodb_table_stats	last_update	3	CURRENT_TIMESTAMP	NO	timestamp	NULL	N
 def	mysql	innodb_table_stats	n_rows	4	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint unsigned			select,insert,update,references			NULL
 def	mysql	innodb_table_stats	clustered_index_size	5	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint unsigned			select,insert,update,references			NULL
 def	mysql	innodb_table_stats	sum_of_other_index_sizes	6	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint unsigned			select,insert,update,references			NULL
+def	mysql	package	name	1	NULL	NO	varchar	64	64	NULL	NULL	NULL	ascii	ascii_general_ci	varchar(64)	PRI		select,insert,update,references	Package name.		NULL
+def	mysql	package	version	2	NULL	NO	varchar	32	32	NULL	NULL	NULL	ascii	ascii_general_ci	varchar(32)			select,insert,update,references	Installed version.		NULL
+def	mysql	package	kind	3	NULL	NO	enum	17	68	NULL	NULL	NULL	utf8mb4	utf8mb4_0900_ai_ci	enum('storage_engine','plugin','loadable_function','component')			select,insert,update,references	Extension kind, which selects how it is installed.		NULL
+def	mysql	package	object_name	4	NULL	NO	varchar	255	1020	NULL	NULL	NULL	utf8mb4	utf8mb4_0900_ai_ci	varchar(255)			select,insert,update,references	Plugin or function name, or component URN.		NULL
+def	mysql	package	registry	5	NULL	NO	varchar	255	1020	NULL	NULL	NULL	utf8mb4	utf8mb4_0900_ai_ci	varchar(255)			select,insert,update,references	Registry the package was resolved from.		NULL
+def	mysql	package	compat_key	6	NULL	NO	varchar	255	255	NULL	NULL	NULL	ascii	ascii_general_ci	varchar(255)			select,insert,update,references	Compatibility key of the installed artifact.		NULL
+def	mysql	package	constraint_spec	7	NULL	NO	varchar	64	64	NULL	NULL	NULL	ascii	ascii_general_ci	varchar(64)			select,insert,update,references	Version constraint as requested.		NULL
+def	mysql	package	artifact_sha256	8	NULL	NO	char	64	64	NULL	NULL	NULL	ascii	ascii_general_ci	char(64)			select,insert,update,references	Digest of the installed artifact.		NULL
+def	mysql	package	origin	9	NULL	NO	enum	6	24	NULL	NULL	NULL	utf8mb4	utf8mb4_0900_ai_ci	enum('binary','source')			select,insert,update,references	Prebuilt, or built on this host.		NULL
+def	mysql	package	installed_at	10	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		DEFAULT_GENERATED	select,insert,update,references	Install time.		NULL
+def	mysql	package	pending_version	11	NULL	YES	varchar	32	32	NULL	NULL	NULL	ascii	ascii_general_ci	varchar(32)			select,insert,update,references	Staged update applied at restart.		NULL
 def	mysql	password_history	Host	1		NO	char	255	255	NULL	NULL	NULL	ascii	ascii_general_ci	char(255)	PRI		select,insert,update,references			NULL
 def	mysql	password_history	User	2		NO	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)	PRI		select,insert,update,references			NULL
 def	mysql	password_history	Password_timestamp	3	CURRENT_TIMESTAMP(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)	PRI	DEFAULT_GENERATED	select,insert,update,references			NULL
@@ -339,6 +350,8 @@ COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 3.0000	set	utf8mb3	utf8mb3_general_ci
 3.0000	varchar	utf8mb3	utf8mb3_general_ci
 4.0000	char	utf8mb4	utf8mb4_0900_ai_ci
+4.0000	enum	utf8mb4	utf8mb4_0900_ai_ci
+4.0000	varchar	utf8mb4	utf8mb4_0900_ai_ci
 SELECT DISTINCT
 CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
 DATA_TYPE,
@@ -462,6 +475,17 @@ NULL	mysql	innodb_table_stats	last_update	timestamp	NULL	NULL	NULL	NULL	timestam
 NULL	mysql	innodb_table_stats	n_rows	bigint	NULL	NULL	NULL	NULL	bigint unsigned
 NULL	mysql	innodb_table_stats	clustered_index_size	bigint	NULL	NULL	NULL	NULL	bigint unsigned
 NULL	mysql	innodb_table_stats	sum_of_other_index_sizes	bigint	NULL	NULL	NULL	NULL	bigint unsigned
+1.0000	mysql	package	name	varchar	64	64	ascii	ascii_general_ci	varchar(64)
+1.0000	mysql	package	version	varchar	32	32	ascii	ascii_general_ci	varchar(32)
+4.0000	mysql	package	kind	enum	17	68	utf8mb4	utf8mb4_0900_ai_ci	enum('storage_engine','plugin','loadable_function','component')
+4.0000	mysql	package	object_name	varchar	255	1020	utf8mb4	utf8mb4_0900_ai_ci	varchar(255)
+4.0000	mysql	package	registry	varchar	255	1020	utf8mb4	utf8mb4_0900_ai_ci	varchar(255)
+1.0000	mysql	package	compat_key	varchar	255	255	ascii	ascii_general_ci	varchar(255)
+1.0000	mysql	package	constraint_spec	varchar	64	64	ascii	ascii_general_ci	varchar(64)
+1.0000	mysql	package	artifact_sha256	char	64	64	ascii	ascii_general_ci	char(64)
+4.0000	mysql	package	origin	enum	6	24	utf8mb4	utf8mb4_0900_ai_ci	enum('binary','source')
+NULL	mysql	package	installed_at	timestamp	NULL	NULL	NULL	NULL	timestamp
+1.0000	mysql	package	pending_version	varchar	32	32	ascii	ascii_general_ci	varchar(32)
 1.0000	mysql	password_history	Host	char	255	255	ascii	ascii_general_ci	char(255)
 3.0000	mysql	password_history	User	char	32	96	utf8mb3	utf8mb3_bin	char(32)
 NULL	mysql	password_history	Password_timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp(6)
