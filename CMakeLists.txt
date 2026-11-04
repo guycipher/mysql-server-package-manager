@@ -2525,6 +2525,8 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql_server_suffix.h.in
                ${CMAKE_BINARY_DIR}/include/mysql_server_suffix.h)
 INCLUDE(cmake/sdk_identity.cmake)
 MYSQL_COMPUTE_SDK_IDENTITY()
+INCLUDE(cmake/plugin_sdk.cmake)
+MYSQL_INSTALL_PLUGIN_SDK()
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
     ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc)
 
