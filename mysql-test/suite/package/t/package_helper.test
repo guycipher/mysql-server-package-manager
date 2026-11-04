@@ -96,6 +96,40 @@ EOF
 --error 1
 --exec $MYSQL_PACKAGE_BUILD resolve --name engine --constraint latest $common --trust-roots $tmp/signer.pub
 
+--echo # A native dependency with no pkg-config file is found where the
+--echo # dynamic linker looks, and its version is read from the file name.
+--mkdir $tmp/lib
+--write_file $tmp/lib/libfakedep.so.1.2.3
+EOF
+--exec ln -s libfakedep.so.1.2.3 $tmp/lib/libfakedep.so
+--write_file $tmp/lib/libbare.so
+EOF
+perl;
+  my %requires = ("needs" => "libfakedep = \"^1.2\"",
+                  "newer" => "libfakedep = \"^2\"",
+                  "bare" => "libbare = \">=1.0\"",
+                  "absent" => "libnosuchdep = \">=1.0\"");
+  for my $name (keys %requires) {
+    open(my $f, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/package_helper/$name.toml")
+      or die;
+    print $f "[package]\nname = \"$name\"\nversion = \"1.0.0\"\n\n" .
+             "[[object]]\ntype = \"component\"\n\n" .
+             "[compat]\nserver = \">=26.0.0\"\n\n" .
+             "[requires]\n$requires{$name}\n";
+    close $f;
+  }
+EOF
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/needs.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/newer.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/bare.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/absent.toml --key $tmp/signer.pem --binary "$key=$artifact" > /dev/null
+--exec LD_LIBRARY_PATH=$tmp/lib $MYSQL_PACKAGE_BUILD resolve --name needs --constraint latest $common --trust-roots $tmp/signer.pub | grep -E "^(status|version|error|arg)="
+--exec LD_LIBRARY_PATH=$tmp/lib $MYSQL_PACKAGE_BUILD resolve --name newer --constraint latest $common --trust-roots $tmp/signer.pub | grep -E "^(status|version|error|arg)="
+--echo # A library whose file name carries no version is accepted.
+--exec LD_LIBRARY_PATH=$tmp/lib $MYSQL_PACKAGE_BUILD resolve --name bare --constraint latest $common --trust-roots $tmp/signer.pub | grep -E "^(status|version|error|arg)="
+--echo # A library found nowhere is refused.
+--exec $MYSQL_PACKAGE_BUILD resolve --name absent --constraint latest $common --trust-roots $tmp/signer.pub | grep -E "^(status|version|error|arg)="
+
 --echo # A registry signed by a key that is not a trust root is refused.
 --replace_result $tmp TMP $key KEY
 --error 1

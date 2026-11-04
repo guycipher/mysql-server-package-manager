@@ -36,6 +36,26 @@ status=error
 error=ER_PACKAGE_MANIFEST_INVALID
 arg=engine
 arg=a storage engine, daemon or information schema plugin needs an exact [compat] server version
+# A native dependency with no pkg-config file is found where the
+# dynamic linker looks, and its version is read from the file name.
+status=ok
+version=1.0.0
+status=error
+error=ER_PACKAGE_DEPENDENCY
+arg=newer
+arg=libfakedep
+arg=^2
+arg=found 1.2.3
+# A library whose file name carries no version is accepted.
+status=ok
+version=1.0.0
+# A library found nowhere is refused.
+status=error
+error=ER_PACKAGE_DEPENDENCY
+arg=absent
+arg=libnosuchdep
+arg=>=1.0
+arg=not found by pkg-config or in the library path
 # A registry signed by a key that is not a trust root is refused.
 status=error
 error=ER_PACKAGE_BAD_SIGNATURE
