@@ -1,0 +1,19 @@
+SELECT COUNT(@@GLOBAL.version_id);
+COUNT(@@GLOBAL.version_id)
+1
+SET @@GLOBAL.version_id=1;
+ERROR HY000: Variable 'version_id' is a read only variable
+SELECT @@GLOBAL.version_id = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='version_id';
+@@GLOBAL.version_id = VARIABLE_VALUE
+1
+SELECT @@version_id = @@GLOBAL.version_id;
+@@version_id = @@GLOBAL.version_id
+1
+SELECT COUNT(@@local.version_id);
+ERROR HY000: Variable 'version_id' is a GLOBAL variable
+SELECT COUNT(@@SESSION.version_id);
+ERROR HY000: Variable 'version_id' is a GLOBAL variable
+SELECT version_id;
+ERROR 42S22: Unknown column 'version_id' in 'field list'

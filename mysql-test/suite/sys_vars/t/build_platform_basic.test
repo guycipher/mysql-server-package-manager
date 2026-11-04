@@ -1,0 +1,21 @@
+SELECT COUNT(@@GLOBAL.build_platform);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.build_platform=1;
+
+--disable_warnings
+SELECT @@GLOBAL.build_platform = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_platform';
+--enable_warnings
+
+SELECT @@build_platform = @@GLOBAL.build_platform;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.build_platform);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.build_platform);
+
+--error ER_BAD_FIELD_ERROR
+SELECT build_platform;

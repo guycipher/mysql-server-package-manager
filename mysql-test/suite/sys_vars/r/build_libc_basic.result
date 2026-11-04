@@ -1,0 +1,19 @@
+SELECT COUNT(@@GLOBAL.build_libc);
+COUNT(@@GLOBAL.build_libc)
+1
+SET @@GLOBAL.build_libc=1;
+ERROR HY000: Variable 'build_libc' is a read only variable
+SELECT @@GLOBAL.build_libc = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_libc';
+@@GLOBAL.build_libc = VARIABLE_VALUE
+1
+SELECT @@build_libc = @@GLOBAL.build_libc;
+@@build_libc = @@GLOBAL.build_libc
+1
+SELECT COUNT(@@local.build_libc);
+ERROR HY000: Variable 'build_libc' is a GLOBAL variable
+SELECT COUNT(@@SESSION.build_libc);
+ERROR HY000: Variable 'build_libc' is a GLOBAL variable
+SELECT build_libc;
+ERROR 42S22: Unknown column 'build_libc' in 'field list'

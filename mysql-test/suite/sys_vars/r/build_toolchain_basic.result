@@ -1,0 +1,19 @@
+SELECT COUNT(@@GLOBAL.build_toolchain);
+COUNT(@@GLOBAL.build_toolchain)
+1
+SET @@GLOBAL.build_toolchain=1;
+ERROR HY000: Variable 'build_toolchain' is a read only variable
+SELECT @@GLOBAL.build_toolchain = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_toolchain';
+@@GLOBAL.build_toolchain = VARIABLE_VALUE
+1
+SELECT @@build_toolchain = @@GLOBAL.build_toolchain;
+@@build_toolchain = @@GLOBAL.build_toolchain
+1
+SELECT COUNT(@@local.build_toolchain);
+ERROR HY000: Variable 'build_toolchain' is a GLOBAL variable
+SELECT COUNT(@@SESSION.build_toolchain);
+ERROR HY000: Variable 'build_toolchain' is a GLOBAL variable
+SELECT build_toolchain;
+ERROR 42S22: Unknown column 'build_toolchain' in 'field list'

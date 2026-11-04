@@ -1,0 +1,21 @@
+SELECT COUNT(@@GLOBAL.build_type);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.build_type=1;
+
+--disable_warnings
+SELECT @@GLOBAL.build_type = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_type';
+--enable_warnings
+
+SELECT @@build_type = @@GLOBAL.build_type;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.build_type);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.build_type);
+
+--error ER_BAD_FIELD_ERROR
+SELECT build_type;

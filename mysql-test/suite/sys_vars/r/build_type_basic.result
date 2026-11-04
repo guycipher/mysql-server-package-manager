@@ -1,0 +1,19 @@
+SELECT COUNT(@@GLOBAL.build_type);
+COUNT(@@GLOBAL.build_type)
+1
+SET @@GLOBAL.build_type=1;
+ERROR HY000: Variable 'build_type' is a read only variable
+SELECT @@GLOBAL.build_type = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_type';
+@@GLOBAL.build_type = VARIABLE_VALUE
+1
+SELECT @@build_type = @@GLOBAL.build_type;
+@@build_type = @@GLOBAL.build_type
+1
+SELECT COUNT(@@local.build_type);
+ERROR HY000: Variable 'build_type' is a GLOBAL variable
+SELECT COUNT(@@SESSION.build_type);
+ERROR HY000: Variable 'build_type' is a GLOBAL variable
+SELECT build_type;
+ERROR 42S22: Unknown column 'build_type' in 'field list'

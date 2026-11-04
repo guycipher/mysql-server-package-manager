@@ -1,0 +1,21 @@
+SELECT COUNT(@@GLOBAL.sdk_cxxflags);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.sdk_cxxflags=1;
+
+--disable_warnings
+SELECT @@GLOBAL.sdk_cxxflags = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='sdk_cxxflags';
+--enable_warnings
+
+SELECT @@sdk_cxxflags = @@GLOBAL.sdk_cxxflags;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.sdk_cxxflags);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.sdk_cxxflags);
+
+--error ER_BAD_FIELD_ERROR
+SELECT sdk_cxxflags;

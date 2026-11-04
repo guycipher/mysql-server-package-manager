@@ -1,0 +1,19 @@
+SELECT COUNT(@@GLOBAL.sdk_ldflags);
+COUNT(@@GLOBAL.sdk_ldflags)
+1
+SET @@GLOBAL.sdk_ldflags=1;
+ERROR HY000: Variable 'sdk_ldflags' is a read only variable
+SELECT @@GLOBAL.sdk_ldflags = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='sdk_ldflags';
+@@GLOBAL.sdk_ldflags = VARIABLE_VALUE
+1
+SELECT @@sdk_ldflags = @@GLOBAL.sdk_ldflags;
+@@sdk_ldflags = @@GLOBAL.sdk_ldflags
+1
+SELECT COUNT(@@local.sdk_ldflags);
+ERROR HY000: Variable 'sdk_ldflags' is a GLOBAL variable
+SELECT COUNT(@@SESSION.sdk_ldflags);
+ERROR HY000: Variable 'sdk_ldflags' is a GLOBAL variable
+SELECT sdk_ldflags;
+ERROR 42S22: Unknown column 'sdk_ldflags' in 'field list'

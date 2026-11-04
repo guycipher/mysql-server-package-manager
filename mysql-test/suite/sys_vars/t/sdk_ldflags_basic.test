@@ -1,0 +1,21 @@
+SELECT COUNT(@@GLOBAL.sdk_ldflags);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.sdk_ldflags=1;
+
+--disable_warnings
+SELECT @@GLOBAL.sdk_ldflags = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='sdk_ldflags';
+--enable_warnings
+
+SELECT @@sdk_ldflags = @@GLOBAL.sdk_ldflags;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.sdk_ldflags);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.sdk_ldflags);
+
+--error ER_BAD_FIELD_ERROR
+SELECT sdk_ldflags;

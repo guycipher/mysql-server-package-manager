@@ -94,9 +94,11 @@
 #include "mysql/binlog/event/compression/zstd_comp.h"  // DEFAULT_COMPRESSION_LEVEL
 #include "mysql/plugin_group_replication.h"
 #include "mysql/psi/mysql_mutex.h"
+#include "mysql/sdk_identity.h"
 #include "mysql/strings/dtoa.h"
 #include "mysql/strings/int2str.h"
 #include "mysql/strings/m_ctype.h"
+#include "mysql_sdk_build.h"
 #include "mysql_version.h"
 #include "nulls.h"
 #include "sql-common/my_decimal.h"
@@ -5176,6 +5178,61 @@ static Sys_var_charptr Sys_version_compile_zlib(
     "version_compile_zlib", "version_compile_zlib",
     READ_ONLY NON_PERSIST GLOBAL_VAR(server_version_compile_zlib_ptr),
     NO_CMD_LINE, IN_SYSTEM_CHARSET, DEFAULT(ZLIB_VERSION));
+
+/*
+  The build identity an out of tree extension must match. Storage engine,
+  daemon and information schema plugins are checked against version_id.
+*/
+static uint server_version_id = MYSQL_VERSION_ID;
+static Sys_var_uint Sys_version_id(
+    "version_id", "The numeric server version plugins are checked against",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_version_id), NO_CMD_LINE,
+    VALID_RANGE(0, ~0), DEFAULT(MYSQL_VERSION_ID), BLOCK_SIZE(1));
+
+static const char *server_build_platform_ptr = MYSQL_SDK_PLATFORM;
+static Sys_var_charptr Sys_build_platform(
+    "build_platform", "Operating system and architecture, e.g. linux-x86_64",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_build_platform_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(MYSQL_SDK_PLATFORM));
+
+static const char *server_build_toolchain_ptr = MYSQL_SDK_TOOLCHAIN;
+static Sys_var_charptr Sys_build_toolchain(
+    "build_toolchain", "Compiler and C++ runtime ABI, e.g. gcc13-cxx11abi",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_build_toolchain_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(MYSQL_SDK_TOOLCHAIN));
+
+static const char *server_build_libc_ptr = MYSQL_SDK_LIBC;
+static Sys_var_charptr Sys_build_libc(
+    "build_libc", "The C library the server was built against",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_build_libc_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(MYSQL_SDK_LIBC));
+
+static const char *server_build_type_ptr = MYSQL_SDK_BUILD_TYPE;
+static Sys_var_charptr Sys_build_type(
+    "build_type", "release or debug",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_build_type_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(MYSQL_SDK_BUILD_TYPE));
+
+#define SERVER_COMPAT_KEY                                  \
+  "mysql-" MYSQL_SDK_SERVER_VERSION "/" MYSQL_SDK_PLATFORM \
+  "/" MYSQL_SDK_TOOLCHAIN "/" MYSQL_SDK_BUILD_TYPE
+static const char *server_build_compat_key_ptr = SERVER_COMPAT_KEY;
+static Sys_var_charptr Sys_build_compat_key(
+    "build_compat_key", "The key a package artifact must match to load here",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_build_compat_key_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(SERVER_COMPAT_KEY));
+
+static const char *server_sdk_cxxflags_ptr = MYSQL_SDK_CXXFLAGS;
+static Sys_var_charptr Sys_sdk_cxxflags(
+    "sdk_cxxflags", "Compile flags an extension must be built with",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_sdk_cxxflags_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(MYSQL_SDK_CXXFLAGS));
+
+static const char *server_sdk_ldflags_ptr = MYSQL_SDK_LDFLAGS;
+static Sys_var_charptr Sys_sdk_ldflags(
+    "sdk_ldflags", "Link flags an extension must be built with",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(server_sdk_ldflags_ptr), NO_CMD_LINE,
+    IN_SYSTEM_CHARSET, DEFAULT(MYSQL_SDK_LDFLAGS));
 
 static Sys_var_ulong Sys_net_wait_timeout(
     "wait_timeout",

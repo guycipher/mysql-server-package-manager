@@ -1,0 +1,20 @@
+# The published build identity must agree with itself and with @@version.
+
+SELECT @@version_id = SUBSTRING_INDEX(@@version, '.', 1) * 10000 +
+       SUBSTRING_INDEX(SUBSTRING_INDEX(@@version, '.', 2), '.', -1) * 100 +
+       SUBSTRING_INDEX(SUBSTRING_INDEX(@@version, '-', 1), '.', -1)
+       AS version_id_matches_version;
+
+SELECT @@build_compat_key =
+       CONCAT('mysql-', SUBSTRING_INDEX(@@version, '-', 1), '/',
+              @@build_platform, '/', @@build_toolchain, '/', @@build_type)
+       AS key_matches_parts;
+
+SELECT @@build_type IN ('release', 'debug') AS build_type_known;
+
+SELECT (@@build_type = 'debug') = (@@version LIKE '%debug%')
+       AS build_type_matches_version;
+
+SELECT @@build_platform = LOWER(@@build_platform) AS platform_lower_case;
+
+SELECT @@sdk_cxxflags LIKE '%-DMYSQL_DYNAMIC_PLUGIN%' AS flags_name_plugin;

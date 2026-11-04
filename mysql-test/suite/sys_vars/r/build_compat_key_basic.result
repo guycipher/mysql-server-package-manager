@@ -1,0 +1,19 @@
+SELECT COUNT(@@GLOBAL.build_compat_key);
+COUNT(@@GLOBAL.build_compat_key)
+1
+SET @@GLOBAL.build_compat_key=1;
+ERROR HY000: Variable 'build_compat_key' is a read only variable
+SELECT @@GLOBAL.build_compat_key = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_compat_key';
+@@GLOBAL.build_compat_key = VARIABLE_VALUE
+1
+SELECT @@build_compat_key = @@GLOBAL.build_compat_key;
+@@build_compat_key = @@GLOBAL.build_compat_key
+1
+SELECT COUNT(@@local.build_compat_key);
+ERROR HY000: Variable 'build_compat_key' is a GLOBAL variable
+SELECT COUNT(@@SESSION.build_compat_key);
+ERROR HY000: Variable 'build_compat_key' is a GLOBAL variable
+SELECT build_compat_key;
+ERROR 42S22: Unknown column 'build_compat_key' in 'field list'

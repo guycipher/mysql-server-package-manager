@@ -1,0 +1,21 @@
+SELECT COUNT(@@GLOBAL.build_compat_key);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.build_compat_key=1;
+
+--disable_warnings
+SELECT @@GLOBAL.build_compat_key = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='build_compat_key';
+--enable_warnings
+
+SELECT @@build_compat_key = @@GLOBAL.build_compat_key;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.build_compat_key);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.build_compat_key);
+
+--error ER_BAD_FIELD_ERROR
+SELECT build_compat_key;

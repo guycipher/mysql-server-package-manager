@@ -1,0 +1,21 @@
+SELECT COUNT(@@GLOBAL.version_id);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.version_id=1;
+
+--disable_warnings
+SELECT @@GLOBAL.version_id = VARIABLE_VALUE
+FROM performance_schema.global_variables
+WHERE VARIABLE_NAME='version_id';
+--enable_warnings
+
+SELECT @@version_id = @@GLOBAL.version_id;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.version_id);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.version_id);
+
+--error ER_BAD_FIELD_ERROR
+SELECT version_id;
