@@ -1,0 +1,35 @@
+# The publisher's source, with a tag for each kind of build.
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+# Without package_allow_source_build nothing is built.
+INSTALL PACKAGE 'srcudf';
+ERROR HY000: Package 'srcudf' 1.0.0 has no artifact for 'KEY' and package_allow_source_build is OFF.
+SET GLOBAL package_allow_source_build = ON;
+INSTALL PACKAGE 'srcudf';
+SELECT srcudf() AS built_from_source;
+built_from_source
+42
+SHOW PACKAGES;
+Package	Version	Constraint	Origin	Objects	Compat_key	Registry
+srcudf	1.0.0	latest	source	function srcudf	KEY	REGISTRY
+# A build that fails, a build that runs too long and a tag that no
+# longer points at the pinned commit are each refused.
+INSTALL PACKAGE 'broken';
+ERROR HY000: The package helper failed: source build exited with status 1: LOG
+SET GLOBAL package_build_timeout = 3;
+INSTALL PACKAGE 'slow';
+ERROR HY000: The package helper failed: source build timed out after 3 s
+SET GLOBAL package_build_timeout = DEFAULT;
+INSTALL PACKAGE 'moved';
+ERROR HY000: The package helper failed: tag v-broken is at COMMIT, not the pinned commit COMMIT
+# The recipe is named, never a shell command.
+INSTALL PACKAGE 'recipe';
+ERROR HY000: The manifest of package 'recipe' is invalid: [source] build names a recipe, and the only one is cmake
+SELECT name, origin FROM mysql.package ORDER BY name;
+name	origin
+srcudf	source
+include/assert_grep.inc [The failed build is in the error log]
+UNINSTALL PACKAGE 'srcudf';
+SET GLOBAL package_allow_source_build = DEFAULT;
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;

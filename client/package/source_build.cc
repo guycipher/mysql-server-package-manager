@@ -116,6 +116,7 @@ int run_program(const std::vector<std::string> &, const std::string &,
 #endif
 
 bool build_from_source(const Manifest &manifest, const std::string &sdk_prefix,
+                       const std::string &build_type,
                        const std::string &work_dir, const std::string &artifact,
                        unsigned timeout, Failure *failure) {
 #ifdef _WIN32
@@ -164,8 +165,14 @@ bool build_from_source(const Manifest &manifest, const std::string &sdk_prefix,
       "MYSQL_SDK_PREFIX=" + sdk_prefix,
       "CMAKE_PREFIX_PATH=" + sdk_prefix,
   };
-  const int status = run_program({"sh", "-c", source.build}, tree, env,
-                                 remaining(), log, &timed_out);
+  const std::string cmake_type = build_type == "debug" ? "Debug" : "Release";
+  int status = run_program(
+      {"cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=" + cmake_type,
+       "-DCMAKE_PREFIX_PATH=" + sdk_prefix},
+      tree, env, remaining(), log, &timed_out);
+  if (status == 0 && !timed_out)
+    status = run_program({"cmake", "--build", "build"}, tree, env, remaining(),
+                         log, &timed_out);
   if (timed_out)
     return helper_failed(
         "source build timed out after " + std::to_string(timeout) + " s",

@@ -318,8 +318,9 @@ int resolve(std::map<std::string, std::string> &opt,
         std::filesystem::path(manifest.source.produces).filename().string();
     const unsigned timeout =
         static_cast<unsigned>(std::max(1L, atol(opt["timeout"].c_str())));
-    if (!build_from_source(manifest, opt["sdk-prefix"], staging, artifact,
-                           timeout, &failure))
+    const std::string build_type = key.substr(key.rfind('/') + 1);
+    if (!build_from_source(manifest, opt["sdk-prefix"], build_type, staging,
+                           artifact, timeout, &failure))
       return report(failure);
     std::string digest;
     if (!mysql::package::sha256_file_hex(artifact, &digest))

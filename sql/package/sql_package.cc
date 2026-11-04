@@ -979,6 +979,10 @@ bool resolve_package(THD *thd, const Package_settings &settings,
       break;
   }
   if (output.value("status") != "ok") {
+    /* A failed build is explained in full in the error log. */
+    if (output.value("error") == "ER_PACKAGE_HELPER_FAILED")
+      LogErr(WARNING_LEVEL, ER_PACKAGE_LOG_HELPER_OUTPUT, name.c_str(),
+             output.value("arg").c_str());
     report_helper_error(output);
     return true;
   }

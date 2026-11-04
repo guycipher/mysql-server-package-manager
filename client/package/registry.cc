@@ -300,6 +300,10 @@ bool Registry::manifest(const Index_entry &entry, Manifest *manifest,
       return invalid(entry.name,
                      "[source] needs git, tag, commit, build and produces",
                      failure);
+    if (manifest->source.build != "cmake")
+      return invalid(entry.name,
+                     "[source] build names a recipe, and the only one is cmake",
+                     failure);
   }
   return true;
 }

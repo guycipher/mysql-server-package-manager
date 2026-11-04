@@ -1,0 +1,134 @@
+# With package_allow_source_build, a package with no artifact for this
+# server is built from its pinned source by the cmake recipe, in the helper,
+# and installed like a prebuilt one. Every way a build can fail leaves the
+# server as it was.
+
+--source ../include/have_package_tools.inc
+--source include/not_windows.inc
+--disable_query_log
+perl;
+  my $ok = system("git --version >/dev/null 2>&1") == 0 &&
+    system("cmake --version >/dev/null 2>&1") == 0 &&
+    system("cc --version >/dev/null 2>&1") == 0;
+  open(my $f, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/have_build_tools.inc") or die;
+  print $f ($ok ? "" : "--skip needs git, cmake and a C compiler\n");
+  close $f;
+EOF
+--source $MYSQLTEST_VARDIR/tmp/have_build_tools.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/have_build_tools.inc
+call mtr.add_suppression("Package helper output for");
+--enable_query_log
+
+--let $tmp = $MYSQLTEST_VARDIR/tmp/pkgreg
+--let PKG_TMP = $tmp
+--mkdir $tmp
+
+--echo # The publisher's source, with a tag for each kind of build.
+perl;
+  my $repo = "$ENV{PKG_TMP}/repo";
+  mkdir $repo or die;
+  sub write_file {
+    my ($name, $text) = @_;
+    open(my $f, '>', "$repo/$name") or die;
+    print $f $text;
+    close $f;
+  }
+  sub run { system("cd $repo && @_ >/dev/null 2>&1") == 0 or die "@_"; }
+  sub commit_and_tag {
+    my ($tag) = @_;
+    run("git add -A");
+    run("git -c user.name=t -c user.email=t\@t commit -q -m $tag");
+    run("git tag $tag");
+    my $commit = `cd $repo && git rev-parse HEAD`;
+    chomp $commit;
+    return $commit;
+  }
+  run("git init -q");
+  write_file("srcudf.c",
+    "int srcudf_init(void *initid, void *args, char *message) { return 0; }\n" .
+    "long long srcudf(void *initid, void *args, char *is_null, char *error)\n" .
+    "{ return 42; }\n");
+  my $project = "cmake_minimum_required(VERSION 3.16)\nproject(srcudf C)\n" .
+                "add_library(srcudf MODULE srcudf.c)\n" .
+                "set_target_properties(srcudf PROPERTIES PREFIX \"\")\n";
+  write_file("CMakeLists.txt", $project);
+  my %commit;
+  $commit{good} = commit_and_tag("v1.0.0");
+  write_file("CMakeLists.txt", $project . "message(FATAL_ERROR \"broken on purpose\")\n");
+  $commit{broken} = commit_and_tag("v-broken");
+  write_file("CMakeLists.txt", $project . "execute_process(COMMAND sleep 60)\n");
+  $commit{slow} = commit_and_tag("v-slow");
+
+  my %packages = (
+    "srcudf" => ["v1.0.0", $commit{good}, "cmake"],
+    "broken" => ["v-broken", $commit{broken}, "cmake"],
+    "slow" => ["v-slow", $commit{slow}, "cmake"],
+    "moved" => ["v-broken", $commit{good}, "cmake"],
+    "recipe" => ["v1.0.0", $commit{good}, "make"],
+  );
+  for my $name (keys %packages) {
+    my ($tag, $commit, $build) = @{$packages{$name}};
+    open(my $f, '>', "$ENV{PKG_TMP}/$name.toml") or die;
+    print $f "[package]\nname = \"$name\"\nversion = \"1.0.0\"\n\n" .
+             "[[object]]\ntype = \"function\"\nname = \"srcudf\"\n" .
+             "returns = \"INTEGER\"\n\n[compat]\nserver = \">=26.0.0\"\n\n" .
+             "[source]\ngit = \"file://$repo\"\ntag = \"$tag\"\n" .
+             "commit = \"$commit\"\nbuild = \"$build\"\n" .
+             "produces = \"build/srcudf.so\"\n";
+    close $f;
+  }
+EOF
+
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/signer > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY init $tmp/reg --key $tmp/signer.pem
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/srcudf.toml --key $tmp/signer.pem > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/broken.toml --key $tmp/signer.pem > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/slow.toml --key $tmp/signer.pem > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/moved.toml --key $tmp/signer.pem > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY add $tmp/reg $tmp/recipe.toml --key $tmp/signer.pem > /dev/null
+
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+
+--echo # Without package_allow_source_build nothing is built.
+--replace_regex /'mysql-[^']*'/'KEY'/
+--error ER_PACKAGE_SOURCE_BUILD_DISABLED
+INSTALL PACKAGE 'srcudf';
+
+SET GLOBAL package_allow_source_build = ON;
+INSTALL PACKAGE 'srcudf';
+SELECT srcudf() AS built_from_source;
+--replace_column 6 KEY 7 REGISTRY
+SHOW PACKAGES;
+
+--echo # A build that fails, a build that runs too long and a tag that no
+--echo # longer points at the pinned commit are each refused.
+--replace_regex /(exited with status [0-9]+):.*/\1: LOG/
+--error ER_PACKAGE_HELPER_FAILED
+INSTALL PACKAGE 'broken';
+SET GLOBAL package_build_timeout = 3;
+--error ER_PACKAGE_HELPER_FAILED
+INSTALL PACKAGE 'slow';
+SET GLOBAL package_build_timeout = DEFAULT;
+--replace_regex /[0-9a-f]{40}/COMMIT/
+--error ER_PACKAGE_HELPER_FAILED
+INSTALL PACKAGE 'moved';
+
+--echo # The recipe is named, never a shell command.
+--error ER_PACKAGE_MANIFEST_INVALID
+INSTALL PACKAGE 'recipe';
+
+SELECT name, origin FROM mysql.package ORDER BY name;
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_select = Package helper output for broken: source build exited with status
+--let $assert_count = 1
+--let $assert_text = The failed build is in the error log
+--source include/assert_grep.inc
+
+UNINSTALL PACKAGE 'srcudf';
+SET GLOBAL package_allow_source_build = DEFAULT;
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;
+--force-rmdir $tmp
+--force-rmdir $MYSQLTEST_VARDIR/pkgstore

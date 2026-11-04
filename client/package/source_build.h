@@ -50,8 +50,12 @@ int run_program(const std::vector<std::string> &argv, const std::string &cwd,
 /**
   Clone the manifest's source at its tag, check the tag points at the pinned
   commit, run the build recipe and copy what it produces to artifact.
+
+  The only recipe is cmake, which configures the tree against the SDK with
+  the build type of the server, release or debug, and builds it.
 */
 bool build_from_source(const Manifest &manifest, const std::string &sdk_prefix,
+                       const std::string &build_type,
                        const std::string &work_dir, const std::string &artifact,
                        unsigned timeout, Failure *failure);
 
