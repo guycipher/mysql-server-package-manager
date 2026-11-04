@@ -32,7 +32,8 @@
         --key KEY --libc LIBC --trust-roots FILE --staging DIR
         [--allow-source --sdk-prefix DIR --timeout SECONDS]
     mysql_package_build check --registry URL --name NAME --version VERSION
-        --key KEY --libc LIBC --trust-roots FILE
+        --key KEY --libc LIBC --trust-roots FILE [--constraint SPEC]
+        [--allow-source]
 */
 
 #include <algorithm>
@@ -261,41 +262,72 @@ int resolve(std::map<std::string, std::string> &opt,
   return report(failure);
 }
 
-/* Whether an installed version also has an artifact for a target key. */
+/* Whether an installed version also has an artifact for a target key and,
+   with a constraint, the newest version under it that has one. */
 int check(std::map<std::string, std::string> &opt,
           const mysql::package::Trust_roots &roots) {
   Version target;
   if (!server_version(opt["key"], &target))
     return usage("--key is not a compatibility key");
+  const std::string &constraint = opt["constraint"];
+  if (!constraint.empty()) {
+    bool valid = false;
+    mysql::package::version_satisfies(target, constraint, &valid);
+    if (!valid) return usage("invalid version constraint " + constraint);
+  }
   Registry registry(opt["registry"], &roots);
   Failure failure;
   std::vector<Index_entry> entries;
   if (!registry.versions(opt["name"], &entries, &failure))
     return report(failure);
+  std::sort(entries.begin(), entries.end(),
+            [](const Index_entry &a, const Index_entry &b) {
+              return a.version.compare(b.version) > 0;
+            });
+
+  const bool allow_source = opt.count("allow-source") != 0;
+  std::vector<std::string> all_versions;
+  std::string available = "no";
+  std::string note = opt["version"] + " is not in the registry";
+  std::string newest;
   for (const Index_entry &entry : entries) {
-    if (entry.version_text != opt["version"]) continue;
+    all_versions.push_back(entry.version_text);
+    const bool installed = entry.version_text == opt["version"];
+    bool valid = false;
+    const bool wanted =
+        newest.empty() && !constraint.empty() &&
+        mysql::package::version_satisfies(entry.version, constraint, &valid);
+    if (!installed && !wanted) continue;
+
     Manifest manifest;
     if (!registry.manifest(entry, &manifest, &failure)) return report(failure);
     const Binary *binary = binary_for(manifest, opt["key"]);
-    emit("status", "ok");
-    if (!server_supported(manifest, target)) {
-      emit("available", "no");
-      emit("note", "requires server " + manifest.server_spec);
+    const bool supported = server_supported(manifest, target);
+    const bool binary_ok = binary != nullptr && mysql::package::libc_satisfies(
+                                                    binary->libc, opt["libc"]);
+    if (wanted && supported &&
+        (binary_ok || (allow_source && manifest.has_source)))
+      newest = entry.version_text;
+    if (!installed) continue;
+
+    if (!supported) {
+      note = "requires server " + manifest.server_spec;
     } else if (binary == nullptr) {
-      emit("available", manifest.has_source ? "source" : "no");
-      emit("note", "no artifact for " + opt["key"]);
-    } else if (!mysql::package::libc_satisfies(binary->libc, opt["libc"])) {
-      emit("available", "no");
-      emit("note", "needs " + binary->libc);
+      available = manifest.has_source ? "source" : "no";
+      note = "no artifact for " + opt["key"];
+    } else if (!binary_ok) {
+      note = "needs " + binary->libc;
     } else {
-      emit("available", "yes");
-      emit("note", "artifact for " + opt["key"]);
+      available = "yes";
+      note = "artifact for " + opt["key"];
     }
-    return 0;
   }
-  failure.error = "ER_PACKAGE_NOT_FOUND";
-  failure.args = {opt["name"] + " " + opt["version"], opt["registry"]};
-  return report(failure);
+  emit("status", "ok");
+  emit("available", available);
+  emit("note", note);
+  emit("versions", join(all_versions));
+  if (!constraint.empty()) emit("newest", newest.empty() ? "none" : newest);
+  return 0;
 }
 
 }  // namespace

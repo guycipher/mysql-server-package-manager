@@ -1589,6 +1589,7 @@ CHARSET_INFO *warn_on_deprecated_user_defined_collation(
         key_cache_name
         label_ident
         opt_package_from
+        opt_package_name
         opt_package_version
         opt_table_alias
         opt_replace_password
@@ -19173,6 +19174,25 @@ package_stmt:
             lex->m_sql_cmd= new (YYMEM_ROOT)
               Sql_cmd_uninstall_package(to_lex_cstring($3));
           }
+        | SHOW PACKAGE_SYM STATUS_SYM opt_package_name
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_PACKAGE_STATUS;
+            lex->m_sql_cmd= new (YYMEM_ROOT)
+              Sql_cmd_show_package_status($4, NULL_CSTR);
+          }
+        | SHOW PACKAGE_SYM STATUS_SYM FOR_SYM SERVER_SYM TEXT_STRING_sys
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_PACKAGE_STATUS;
+            lex->m_sql_cmd= new (YYMEM_ROOT)
+              Sql_cmd_show_package_status(NULL_CSTR, to_lex_cstring($6));
+          }
+        ;
+
+opt_package_name:
+          %empty { $$ = NULL_CSTR; }
+        | TEXT_STRING_sys { $$ = to_lex_cstring($1); }
         ;
 
 /* VERSION is not a keyword, so that VERSION() stays a plain function. */

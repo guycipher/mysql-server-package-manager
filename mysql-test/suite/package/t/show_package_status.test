@@ -1,0 +1,104 @@
+# SHOW PACKAGE STATUS reports what the registry offers each installed
+# package, and SHOW PACKAGE STATUS FOR SERVER whether each one has an
+# artifact for a server the operator is about to upgrade to.
+
+--source ../include/have_package_tools.inc
+
+--let $tmp = $MYSQLTEST_VARDIR/tmp/pkgreg
+--let $plugin_dir = `SELECT @@plugin_dir`
+--let PKG_TMP = $tmp
+--let PKG_SERVER = `SELECT SUBSTRING_INDEX(@@version, '-', 1)`
+--let $key = `SELECT @@build_compat_key`
+--let $next_key = `SELECT CONCAT('mysql-26.10.1/', @@build_platform, '/', @@build_toolchain, '/', @@build_type)`
+--mkdir $tmp
+
+--exec $MYSQL_PACKAGE_REGISTRY keygen $tmp/signer > /dev/null
+--exec $MYSQL_PACKAGE_REGISTRY init $tmp/reg --key $tmp/signer.pem
+
+perl;
+  my $tmp = $ENV{PKG_TMP};
+  my $metaphon = "[[object]]\ntype = \"function\"\nname = \"metaphon\"\n" .
+                 "returns = \"STRING\"\n\n[compat]\nserver = \">=26.0.0\"\n";
+  my $example = "[[object]]\ntype = \"plugin\"\nname = \"EXAMPLE\"\n" .
+                "plugin_type = \"storage_engine\"\n\n" .
+                "[compat]\nserver = \"=$ENV{PKG_SERVER}\"\n";
+  my @manifests = (
+    ["udfs", "1.0.0", $metaphon],
+    ["udfs", "1.1.0", $metaphon],
+    ["udfs", "2.0.0", $metaphon],
+    ["engine", "1.0.0", $example],
+    ["engine", "1.0.1", $example],
+  );
+  for my $manifest (@manifests) {
+    my ($name, $version, $body) = @$manifest;
+    open(my $f, '>', "$tmp/$name-$version.toml") or die;
+    print $f "[package]\nname = \"$name\"\nversion = \"$version\"\n\n$body";
+    close $f;
+  }
+EOF
+
+--let $add = $MYSQL_PACKAGE_REGISTRY add $tmp/reg --key $tmp/signer.pem
+--exec $add $tmp/udfs-1.0.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/engine-1.0.0.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SHOW PACKAGE STATUS;
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+
+INSTALL PACKAGE 'udfs' VERSION '^1';
+INSTALL PACKAGE 'engine';
+
+--echo # Nothing newer has been published yet.
+SHOW PACKAGE STATUS;
+
+--echo # A release under the constraint is an update, one past it is not.
+--exec $add $tmp/udfs-1.1.0.toml --binary "$key=$plugin_dir/udf_example.so" --binary "$next_key=$plugin_dir/udf_example.so" > /dev/null
+--exec $add $tmp/udfs-2.0.0.toml --binary "$key=$plugin_dir/udf_example.so" > /dev/null
+SHOW PACKAGE STATUS 'udfs';
+
+--echo # Before a server upgrade, the installed versions are checked
+--echo # against the target server, with the newest version that has an
+--echo # artifact for it.
+--replace_result $next_key NEXT_KEY
+SHOW PACKAGE STATUS FOR SERVER '26.10.1';
+--replace_result $key KEY
+eval SHOW PACKAGE STATUS FOR SERVER '$PKG_SERVER';
+
+--echo # A version staged for restart is reported.
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+--exec $add $tmp/engine-1.0.1.toml --binary "$key=$plugin_dir/ha_example.so" > /dev/null
+UPGRADE PACKAGE 'engine';
+SHOW PACKAGE STATUS 'engine';
+DROP TABLE t1;
+
+--echo # A package from a registry no longer allowed is not looked up.
+SET GLOBAL package_registry_allowlist = 'file:///elsewhere';
+--replace_result $tmp TMP
+SHOW PACKAGE STATUS 'udfs';
+--replace_result $tmp TMP
+eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
+
+--echo # A registry that no longer has the package says so.
+--force-rmdir $tmp/reg/udfs
+--replace_result $tmp TMP
+SHOW PACKAGE STATUS 'udfs';
+
+--echo # Refusals.
+--error ER_PACKAGE_NOT_INSTALLED
+SHOW PACKAGE STATUS 'missing';
+--error ER_WRONG_ARGUMENTS
+SHOW PACKAGE STATUS FOR SERVER '26.10';
+--error ER_WRONG_ARGUMENTS
+SHOW PACKAGE STATUS FOR SERVER '26.10.x';
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1() SHOW PACKAGE STATUS;
+
+UNINSTALL PACKAGE 'engine';
+UNINSTALL PACKAGE 'udfs';
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;
+--force-rmdir $tmp
+--force-rmdir $MYSQLTEST_VARDIR/pkgstore

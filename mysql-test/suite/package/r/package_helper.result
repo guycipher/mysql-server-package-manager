@@ -55,6 +55,14 @@ arg=file://TMP/tampered/qa/1.1.0/package.toml
 status=ok
 available=yes
 note=artifact for KEY
+versions=2.0.0, 1.1.0, 1.0.0
 status=ok
 available=no
 note=no artifact for mysql-99.0.0/linux-x86_64/gcc12-cxx11abi/release
+versions=2.0.0, 1.1.0, 1.0.0
+# With a constraint, the newest version under it that has an artifact.
+status=ok
+available=no
+note=needs glibc-99.0
+versions=2.0.0, 1.1.0, 1.0.0
+newest=1.1.0

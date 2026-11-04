@@ -27,7 +27,8 @@
 /**
   @file sql/package/sql_package.h
 
-  INSTALL PACKAGE, UPGRADE PACKAGE, UNINSTALL PACKAGE and SHOW PACKAGES.
+  INSTALL PACKAGE, UPGRADE PACKAGE, UNINSTALL PACKAGE, SHOW PACKAGES and
+  SHOW PACKAGE STATUS.
 */
 
 #include "lex_string.h"
@@ -111,6 +112,32 @@ class Sql_cmd_show_packages : public Sql_cmd {
   }
 
   bool execute(THD *thd) override;
+};
+
+/**
+  SHOW PACKAGE STATUS ['name'] and SHOW PACKAGE STATUS FOR SERVER 'version'
+
+  Asks the registry each package came from about it. The first form reports
+  the newest version under the recorded constraint for this server and any
+  version staged for restart. The second reports, before a server upgrade,
+  whether the installed version and the newest one under the constraint
+  have an artifact for the target server.
+*/
+class Sql_cmd_show_package_status : public Sql_cmd {
+ public:
+  Sql_cmd_show_package_status(const LEX_CSTRING &name,
+                              const LEX_CSTRING &server)
+      : m_name(name), m_server(server) {}
+
+  enum_sql_command sql_command_code() const override {
+    return SQLCOM_SHOW_PACKAGE_STATUS;
+  }
+
+  bool execute(THD *thd) override;
+
+ private:
+  const LEX_CSTRING m_name;
+  const LEX_CSTRING m_server;
 };
 
 /**

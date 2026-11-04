@@ -1,0 +1,58 @@
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+SHOW PACKAGE STATUS;
+ERROR 42000: Access denied; you need (at least one of) the INSTALL_PACKAGE privilege(s) for this operation
+GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
+INSTALL PACKAGE 'udfs' VERSION '^1';
+INSTALL PACKAGE 'engine';
+# Nothing newer has been published yet.
+SHOW PACKAGE STATUS;
+Package	Version	Constraint	Newest	Update_available	Pending_version	Note
+engine	1.0.0	latest	1.0.0	NO		
+udfs	1.0.0	^1	1.0.0	NO		
+# A release under the constraint is an update, one past it is not.
+SHOW PACKAGE STATUS 'udfs';
+Package	Version	Constraint	Newest	Update_available	Pending_version	Note
+udfs	1.0.0	^1	1.1.0	YES		
+# Before a server upgrade, the installed versions are checked
+# against the target server, with the newest version that has an
+# artifact for it.
+SHOW PACKAGE STATUS FOR SERVER '26.10.1';
+Package	Version	Target_available	Target_newest	Note
+engine	1.0.0	NO	none	requires server =26.10.0
+udfs	1.0.0	NO	1.1.0	no artifact for NEXT_KEY
+SHOW PACKAGE STATUS FOR SERVER '26.10.0';
+Package	Version	Target_available	Target_newest	Note
+engine	1.0.0	YES	1.0.0	artifact for KEY
+udfs	1.0.0	YES	1.1.0	artifact for KEY
+# A version staged for restart is reported.
+CREATE TABLE t1 (a INT) ENGINE=EXAMPLE;
+UPGRADE PACKAGE 'engine';
+Warnings:
+Note	6942	Package 'engine' 1.0.1 replaces 1.0.0 at the next restart, because tables use its storage engine EXAMPLE.
+SHOW PACKAGE STATUS 'engine';
+Package	Version	Constraint	Newest	Update_available	Pending_version	Note
+engine	1.0.0	latest	1.0.1	NO	1.0.1	
+DROP TABLE t1;
+# A package from a registry no longer allowed is not looked up.
+SET GLOBAL package_registry_allowlist = 'file:///elsewhere';
+SHOW PACKAGE STATUS 'udfs';
+Package	Version	Constraint	Newest	Update_available	Pending_version	Note
+udfs	1.0.0	^1				registry file://TMP/reg is not in package_registry_allowlist
+SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
+# A registry that no longer has the package says so.
+SHOW PACKAGE STATUS 'udfs';
+Package	Version	Constraint	Newest	Update_available	Pending_version	Note
+udfs	1.0.0	^1				The package helper failed: cannot fetch file://TMP/reg/udfs/1.1.0/package.toml
+# Refusals.
+SHOW PACKAGE STATUS 'missing';
+ERROR HY000: Package 'missing' is not installed.
+SHOW PACKAGE STATUS FOR SERVER '26.10';
+ERROR HY000: Incorrect arguments to SHOW PACKAGE STATUS FOR SERVER
+SHOW PACKAGE STATUS FOR SERVER '26.10.x';
+ERROR HY000: Incorrect arguments to SHOW PACKAGE STATUS FOR SERVER
+CREATE PROCEDURE p1() SHOW PACKAGE STATUS;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'PACKAGE STATUS' at line 1
+UNINSTALL PACKAGE 'engine';
+UNINSTALL PACKAGE 'udfs';
+REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
+SET GLOBAL package_registry_allowlist = DEFAULT;

@@ -122,5 +122,8 @@ EOF
 --replace_result $key KEY
 --exec $MYSQL_PACKAGE_BUILD check --name qa --version 1.1.0 --registry file://$tmp/reg --key $key --libc $libc --trust-roots $tmp/signer.pub
 --exec $MYSQL_PACKAGE_BUILD check --name qa --version 1.1.0 --registry file://$tmp/reg --key mysql-99.0.0/linux-x86_64/gcc12-cxx11abi/release --libc $libc --trust-roots $tmp/signer.pub
+--echo # With a constraint, the newest version under it that has an artifact.
+--replace_result $key KEY
+--exec $MYSQL_PACKAGE_BUILD check --name qa --version 1.0.0 --constraint "^1" --registry file://$tmp/reg --key $key --libc $libc --trust-roots $tmp/signer.pub
 
 --force-rmdir $tmp

@@ -51,6 +51,7 @@
 #include "mysql/package/signature.h"
 #include "mysql/package/version.h"
 #include "mysql/sdk_identity.h"
+#include "mysql/strings/m_ctype.h"
 #include "mysql_sdk_build.h"
 #include "mysqld_error.h"
 #include "scope_guard.h"
@@ -1153,6 +1154,65 @@ bool apply_pending(THD *thd, const Package_row &row, std::string *why) {
   return false;
 }
 
+/* A target server is named X.Y.Z, as in a compatibility key. */
+bool server_version_valid(const std::string &version) {
+  int dots = 0;
+  bool digit = false;
+  for (const char c : version) {
+    if (c == '.') {
+      if (!digit) return false;
+      ++dots;
+      digit = false;
+    } else if (my_isdigit(&my_charset_latin1, c)) {
+      digit = true;
+    } else {
+      return false;
+    }
+  }
+  return dots == 2 && digit;
+}
+
+/* Keeps the message of an error instead of raising it. */
+class Error_text_handler : public Internal_error_handler {
+ public:
+  bool handle_condition(THD *, uint, const char *,
+                        Sql_condition::enum_severity_level *,
+                        const char *message) override {
+    m_text = message;
+    return true;
+  }
+  std::string m_text;
+};
+
+/* The message of the server error the helper named. */
+std::string helper_error_text(THD *thd, const Helper_output &output) {
+  Error_text_handler handler;
+  thd->push_internal_handler(&handler);
+  report_helper_error(output);
+  thd->pop_internal_handler();
+  return handler.m_text;
+}
+
+bool send_rows(THD *thd, const std::vector<const char *> &columns,
+               const std::vector<std::vector<std::string>> &rows) {
+  mem_root_deque<Item *> fields(thd->mem_root);
+  for (const char *column : columns)
+    fields.push_back(new Item_empty_string(column, NAME_CHAR_LEN));
+  if (thd->send_result_metadata(fields,
+                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+    return true;
+  Protocol *protocol = thd->get_protocol();
+  for (const std::vector<std::string> &row : rows) {
+    protocol->start_row();
+    for (const std::string &value : row)
+      protocol->store_string(value.c_str(), value.length(),
+                             system_charset_info);
+    if (protocol->end_row()) return true;
+  }
+  my_eof(thd);
+  return false;
+}
+
 }  // namespace
 
 bool Sql_cmd_install_package::execute(THD *thd) {
@@ -1415,36 +1475,123 @@ bool Sql_cmd_uninstall_package::execute(THD *thd) {
 }
 
 bool Sql_cmd_show_packages::execute(THD *thd) {
-  std::vector<Package_row> rows;
+  std::vector<Package_row> packages;
   {
     const Package_security_guard security_guard(thd);
-    if (read_packages(thd, "", &rows)) return true;
+    if (read_packages(thd, "", &packages)) return true;
   }
-
-  mem_root_deque<Item *> fields(thd->mem_root);
-  for (const char *column : {"Package", "Version", "Constraint", "Origin",
-                             "Objects", "Compat_key", "Registry"})
-    fields.push_back(new Item_empty_string(column, NAME_CHAR_LEN));
-  if (thd->send_result_metadata(fields,
-                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
-    return true;
-
-  Protocol *protocol = thd->get_protocol();
-  for (const Package_row &row : rows) {
+  std::vector<std::vector<std::string>> rows;
+  for (const Package_row &package : packages) {
     std::string objects;
-    for (const Package_object &object : row.objects)
+    for (const Package_object &object : package.objects)
       objects +=
           (objects.empty() ? "" : ", ") + object.type + " " + object.name;
-    protocol->start_row();
-    for (const std::string *value : std::initializer_list<const std::string *>{
-             &row.name, &row.version, &row.constraint, &row.origin, &objects,
-             &row.compat_key, &row.registry})
-      protocol->store_string(value->c_str(), value->length(),
-                             system_charset_info);
-    if (protocol->end_row()) return true;
+    rows.push_back({package.name, package.version, package.constraint,
+                    package.origin, objects, package.compat_key,
+                    package.registry});
   }
-  my_eof(thd);
-  return false;
+  return send_rows(thd,
+                   {"Package", "Version", "Constraint", "Origin", "Objects",
+                    "Compat_key", "Registry"},
+                   rows);
+}
+
+bool Sql_cmd_show_package_status::execute(THD *thd) {
+  Package_settings settings;
+  if (read_settings(&settings) || check_install_package_access(thd))
+    return true;
+
+  const bool for_server = m_server.str != nullptr;
+  const std::string target = for_server ? to_string(m_server) : "";
+  if (for_server && !server_version_valid(target)) {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "SHOW PACKAGE STATUS FOR SERVER");
+    return true;
+  }
+  const std::string key = for_server ? "mysql-" + target +
+                                           "/" MYSQL_SDK_PLATFORM
+                                           "/" MYSQL_SDK_TOOLCHAIN
+                                           "/" MYSQL_SDK_BUILD_TYPE
+                                     : PACKAGE_SERVER_KEY;
+
+  const std::string name = m_name.str == nullptr ? "" : to_string(m_name);
+  std::vector<Package_row> packages;
+  {
+    const Package_security_guard security_guard(thd);
+    if (read_packages(thd, name, &packages)) return true;
+  }
+  if (!name.empty() && packages.empty()) {
+    my_error(ER_PACKAGE_NOT_INSTALLED, MYF(0), name.c_str());
+    return true;
+  }
+
+  std::vector<std::vector<std::string>> rows;
+  for (const Package_row &package : packages) {
+    Helper_output output;
+    std::string note;
+    bool allowed = false;
+    for (const std::string &registry : settings.registries)
+      allowed = allowed || registry == package.registry;
+    if (!allowed) {
+      note = "registry " + package.registry +
+             " is not in package_registry_allowlist";
+    } else {
+      std::vector<std::string> args = {"check",
+                                       "--registry",
+                                       package.registry,
+                                       "--name",
+                                       package.name,
+                                       "--version",
+                                       package.version,
+                                       "--constraint",
+                                       package.constraint,
+                                       "--key",
+                                       key,
+                                       "--libc",
+                                       MYSQL_SDK_LIBC,
+                                       "--trust-roots",
+                                       settings.trust_roots};
+      if (settings.allow_source) args.push_back("--allow-source");
+      std::string why;
+      if (run_helper(thd, args, helper_fetch_seconds, &output, &why)) {
+        if (thd->killed) {
+          my_error(ER_PACKAGE_HELPER_FAILED, MYF(0), why.c_str());
+          return true;
+        }
+        note = why;
+      } else if (output.value("status") != "ok") {
+        note = helper_error_text(thd, output);
+      } else if (for_server || output.value("available") != "yes") {
+        note = output.value("note");
+      }
+    }
+
+    std::string available = output.value("available");
+    for (char &c : available) c = my_toupper(&my_charset_latin1, c);
+    const std::string newest = output.value("newest");
+    if (for_server) {
+      rows.push_back({package.name, package.version, available, newest, note});
+      continue;
+    }
+    mysql::package::Version installed;
+    mysql::package::Version candidate;
+    /* A version already staged for restart is not offered again. */
+    const bool update =
+        installed.parse(package.version) && candidate.parse(newest) &&
+        candidate.compare(installed) > 0 && newest != package.pending_version;
+    rows.push_back(
+        {package.name, package.version, package.constraint, newest,
+         output.value("status") == "ok" ? (update ? "YES" : "NO") : "",
+         package.pending_version, note});
+  }
+  if (for_server)
+    return send_rows(
+        thd,
+        {"Package", "Version", "Target_available", "Target_newest", "Note"},
+        rows);
+  return send_rows(thd,
+                   {"Package", "Version", "Constraint", "Newest",
+                    "Update_available", "Pending_version", "Note"},
+                   rows);
 }
 
 void package_apply_pending() {
