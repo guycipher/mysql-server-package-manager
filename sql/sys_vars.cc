@@ -3523,12 +3523,11 @@ static Sys_var_charptr Sys_package_registry_allowlist(
     IN_SYSTEM_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
     ON_CHECK(check_package_registry_allowlist));
 
-static Sys_var_bool Sys_package_allow_source_build(
-    "package_allow_source_build",
+static Sys_var_bool Sys_package_allow_compile(
+    "package_allow_compile",
     "Allow a package with no prebuilt artifact for this server to be built "
     "from source on this host",
-    GLOBAL_VAR(opt_package_allow_source_build), CMD_LINE(OPT_ARG),
-    DEFAULT(false));
+    GLOBAL_VAR(opt_package_allow_compile), CMD_LINE(OPT_ARG), DEFAULT(false));
 
 static Sys_var_ulong Sys_package_build_timeout(
     "package_build_timeout",

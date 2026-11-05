@@ -42,7 +42,7 @@ extern char *opt_package_helper_ptr;
 extern char opt_package_helper[FN_REFLEN];
 extern char *opt_package_trust_roots;
 extern char *opt_package_registry_allowlist;
-extern bool opt_package_allow_source_build;
+extern bool opt_package_allow_compile;
 extern ulong opt_package_build_timeout;
 
 /** Every package_registry_allowlist entry names an https:// or file:// URL. */

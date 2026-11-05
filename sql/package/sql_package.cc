@@ -238,7 +238,7 @@ bool read_settings(Package_settings *settings) {
   const std::string allowlist = opt_package_registry_allowlist == nullptr
                                     ? ""
                                     : opt_package_registry_allowlist;
-  settings->allow_source = opt_package_allow_source_build;
+  settings->allow_source = opt_package_allow_compile;
   settings->build_timeout = opt_package_build_timeout;
   mysql_mutex_unlock(&LOCK_global_system_variables);
   settings->trust_roots =

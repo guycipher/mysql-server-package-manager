@@ -1,4 +1,4 @@
-# With package_allow_source_build, a package with no artifact for this
+# With package_allow_compile, a package with no artifact for this
 # server is built from its pinned source by the cmake recipe, in the helper,
 # and installed like a prebuilt one. Every way a build can fail leaves the
 # server as it was.
@@ -91,12 +91,12 @@ EOF
 eval SET GLOBAL package_registry_allowlist = 'file://$tmp/reg';
 GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
 
---echo # Without package_allow_source_build nothing is built.
+--echo # Without package_allow_compile nothing is built.
 --replace_regex /'mysql-[^']*'/'KEY'/
 --error ER_PACKAGE_SOURCE_BUILD_DISABLED
 INSTALL PACKAGE 'srcudf';
 
-SET GLOBAL package_allow_source_build = ON;
+SET GLOBAL package_allow_compile = ON;
 INSTALL PACKAGE 'srcudf';
 SELECT srcudf() AS built_from_source;
 --replace_column 6 KEY 7 REGISTRY
@@ -127,7 +127,7 @@ SELECT name, origin FROM mysql.package ORDER BY name;
 --source include/assert_grep.inc
 
 UNINSTALL PACKAGE 'srcudf';
-SET GLOBAL package_allow_source_build = DEFAULT;
+SET GLOBAL package_allow_compile = DEFAULT;
 REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
 SET GLOBAL package_registry_allowlist = DEFAULT;
 --force-rmdir $tmp

@@ -11122,7 +11122,7 @@ ER_PACKAGE_LIBC_TOO_NEW
   eng "Package '%.64s' %.32s needs %.32s and this server was built against %.32s."
 
 ER_PACKAGE_SOURCE_BUILD_DISABLED
-  eng "Package '%.64s' %.32s has no artifact for '%.192s' and package_allow_source_build is OFF."
+  eng "Package '%.64s' %.32s has no artifact for '%.192s' and package_allow_compile is OFF."
 
 ER_PACKAGE_BAD_SIGNATURE
   eng "The signature of '%.192s' is missing or was not made by a key in package_trust_roots."

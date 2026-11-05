@@ -1,10 +1,10 @@
 # The publisher's source, with a tag for each kind of build.
 SET GLOBAL package_registry_allowlist = 'file://TMP/reg';
 GRANT INSTALL_PACKAGE ON *.* TO root@localhost;
-# Without package_allow_source_build nothing is built.
+# Without package_allow_compile nothing is built.
 INSTALL PACKAGE 'srcudf';
-ERROR HY000: Package 'srcudf' 1.0.0 has no artifact for 'KEY' and package_allow_source_build is OFF.
-SET GLOBAL package_allow_source_build = ON;
+ERROR HY000: Package 'srcudf' 1.0.0 has no artifact for 'KEY' and package_allow_compile is OFF.
+SET GLOBAL package_allow_compile = ON;
 INSTALL PACKAGE 'srcudf';
 SELECT srcudf() AS built_from_source;
 built_from_source
@@ -30,6 +30,6 @@ name	origin
 srcudf	source
 include/assert_grep.inc [The failed build is in the error log]
 UNINSTALL PACKAGE 'srcudf';
-SET GLOBAL package_allow_source_build = DEFAULT;
+SET GLOBAL package_allow_compile = DEFAULT;
 REVOKE INSTALL_PACKAGE ON *.* FROM root@localhost;
 SET GLOBAL package_registry_allowlist = DEFAULT;

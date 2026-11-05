@@ -858,7 +858,7 @@ The following options may be given as the first argument:
  Maximum allowed cumulated size of stored optimizer traces
  --optimizer-trace-offset=# 
  Offset of first optimizer trace to show; see manual
- --package-allow-source-build 
+ --package-allow-compile 
  Allow a package with no prebuilt artifact for this server
  to be built from source on this host
  --package-build-timeout=# 
@@ -1932,7 +1932,7 @@ optimizer-trace-features greedy_search=on,range_optimizer=on,dynamic_range=on,re
 optimizer-trace-limit 1
 optimizer-trace-max-mem-size 1048576
 optimizer-trace-offset -1
-package-allow-source-build FALSE
+package-allow-compile FALSE
 package-build-timeout 600
 package-registry-allowlist 
 package-trust-roots 

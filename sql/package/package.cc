@@ -51,7 +51,7 @@ char *opt_package_helper_ptr;
 char opt_package_helper[FN_REFLEN];
 char *opt_package_trust_roots;
 char *opt_package_registry_allowlist;
-bool opt_package_allow_source_build;
+bool opt_package_allow_compile;
 ulong opt_package_build_timeout;
 
 bool package_registry_allowlist_valid(const char *list) {

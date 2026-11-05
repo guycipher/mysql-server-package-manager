@@ -1,0 +1,14 @@
+SET @start_value = @@GLOBAL.package_allow_compile;
+SELECT @start_value AS off_by_default;
+
+SET GLOBAL package_allow_compile = ON;
+SELECT @@GLOBAL.package_allow_compile;
+SET GLOBAL package_allow_compile = OFF;
+SELECT @@GLOBAL.package_allow_compile;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL package_allow_compile = 'maybe';
+--error ER_GLOBAL_VARIABLE
+SET SESSION package_allow_compile = ON;
+
+SET GLOBAL package_allow_compile = @start_value;
